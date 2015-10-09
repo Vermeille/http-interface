@@ -40,6 +40,7 @@ class Tag {
 
 struct H1 : public Tag { H1() : Tag("h1") {} };
 struct H2 : public Tag { H2() : Tag("h2") {} };
+struct H3 : public Tag { H3() : Tag("h3") {} };
 struct Ul : public Tag { Ul() : Tag("ul") {} };
 struct Li : public Tag { Li() : Tag("li") {} };
 struct P : public Tag { P() : Tag("p") {} };

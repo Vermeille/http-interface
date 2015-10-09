@@ -7,7 +7,6 @@
 #include <sys/resource.h>
 #include <memory>
 #include <unistd.h>
-#include <boost/circular_buffer.hpp>
 #include <mutex>
 #include <chrono>
 #include <thread>
@@ -17,30 +16,21 @@
 #include <fstream>
 
 #include "displayer.h"
+#include "chart.h"
 
 #define PORT 8888
 #define NOT_FOUND_ERROR "<html><head><title>Not found</title></head><body>Go away.</body></html>"
 
 static struct MHD_Daemon *g_daemon;
 static std::thread* g_monitoring_thread;
-static std::map<std::string, boost::circular_buffer<size_t>> g_data;
+static DataLog g_data;
 static std::map<std::string, std::string> g_status;
 static std::map<std::string, UrlHandler> g_callbacks;
 static std::string g_name;
 static std::mutex g_data_access;
 
-std::string Chart::Get() {
-    return "<div class=\"col-md-6\">"
-            "<h3>" + name_ + "</h3>"
-            "<div class=\"ct-chart ct-golden-section\" id=\"" + name_ + "\"></div></div>"
-        "<script>"
-            "new Chartist.Line('#" + name_ + "', {"
-                "labels: [" + ToCSV(g_data[label_]) + "].reverse(),"
-                "series: [" +
-                MAP_INTERSPERSE(values_, ", ", v, "[" + ToCSV(g_data[v]) + "].reverse()") +
-                "]"
-            "});"
-        "</script>";
+const DataLog& GetDataLog() {
+    return g_data;
 }
 
 struct ConnInfo {

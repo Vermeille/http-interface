@@ -4,11 +4,15 @@
 #include <string>
 #include <functional>
 #include <map>
+#include <boost/circular_buffer.hpp>
 
 #include "html.h"
 
 typedef std::map<std::string, std::string> POSTValues ;
 typedef std::function<Html(const std::string&, const POSTValues&)> UrlHandler;
+typedef std::map<std::string, boost::circular_buffer<size_t>> DataLog;
+
+const DataLog& GetDataLog();
 
 #define MAP_CONCAT(C, I, B) MapConcat(C, [] (const typename decltype (C)::value_type& I) { return B; })
 #define MAP_INTERSPERSE(C, S, I, B) \
@@ -48,19 +52,6 @@ template <class T>
 std::string Concat(const T& vs) {
     return std::accumulate(vs.begin(), vs.end(), std::string(""));
 }
-
-class Chart {
-    std::string label_;
-    std::vector<std::string> values_;
-    const std::string& name_;
-
-    public:
-    Chart(const std::string& name) : name_(name) {}
-
-    Chart& Label(const std::string& l) { label_ = l; return *this; }
-    Chart& Value(const std::string& v) { values_.push_back(v); return *this; }
-    std::string Get();
-};
 
 bool InitHttpInterface();
 void StopHttpInterface();
