@@ -1,24 +1,57 @@
+#include <glog/logging.h>
+
 #include "displayer.h"
 
-size_t Ackermann(int m, int n) {
-    if (m == 0) {
-        return n +1;
-    } else if (n == 0) {
-        return Ackermann(m - 1, 1);
-    } else {
-        return Ackermann(m - 1, Ackermann(m, n - 1));
-    }
+struct Arg {
+    std::string name;
+    std::string type;
+    std::string desc;
+};
+
+struct TaskDesc {
+    std::vector<Arg> args;
+    std::string name;
+    std::string url;
+    std::string desc;
+    std::function<std::string(const std::vector<std::string>&)> fun;
+};
+
+static const TaskDesc compute_stuff = {
+    { { "a", "int", "Value A" }, { "b", "int", "Value B" } },
+    "Compute Stuff",
+    "/compute",
+    "Compute a + b",
+    [](const std::vector<std::string>&) { return "jkjhk"; }
+};
+
+Html ArgToForm(const Arg& arg) {
+    return Html() <<
+        Div().AddClass("form-group") <<
+            Tag("label").Attr("for", arg.name) << arg.name << Close() <<
+            InputNumber().Name(arg.name).AddClass("form-control")
+                .Id(arg.name).Attr("placeholder", arg.desc) <<
+        Close();
 }
 
-std::string ComputeStuff(const std::string& method, const POSTValues& args) {
+Html TaskToForm(const TaskDesc& td) {
+    auto html = Html() <<
+        H1() << td.name << Close() <<
+        P() << td.desc << Close() <<
+        Form("POST", "/compute");
+
+        for (auto& a : td.args) {
+            html << ArgToForm(a);
+        }
+
+        html << Submit() <<
+            Close();
+    return html;
+}
+
+Html ComputeStuff(const std::string& method, const POSTValues& args) {
+    Html html;
     if (method == "GET") {
-        return
-            "<h1>Compute Stuff</h1>" +
-            Form("POST", "/compute")
-                .Number("a")
-                .Number("b")
-                .Submit("Ackermann")
-            .Get();
+        return TaskToForm(compute_stuff);
     } else if (method == "POST") {
         auto find_a = args.find("a");
         auto find_b = args.find("b");
@@ -26,25 +59,36 @@ std::string ComputeStuff(const std::string& method, const POSTValues& args) {
             int a = std::atoi(find_a->second.c_str());
             int b = std::atoi(find_b->second.c_str());
             SetStatusVar("Has Computed", std::to_string(a + b));
-            return
-                "<h1>Compute Stuff</h1>"
-                "<ul>" + MapConcat(args, [] (const POSTValues::value_type& v) {
-                        return "<li>" + v.first + ": " + v.second + "</li>";
-                        }) +
-                "</ul>"
-            "<p>Result:" + std::to_string(Ackermann(a, b)) + "</p>";
+
+            html <<
+                H1() << "Compute Stuff" << Close() <<
+                Ul();
+
+            for (auto& arg : args)
+                html << Li() << arg.first + ": " + arg.second << Close();
+
+            html << Close() <<
+            P() << "Result:" + std::to_string(a + b) << Close();
         } else {
-            return
-                "<h1>Compute Stuff</h1>" +
-                std::string(find_a == args.end() ? "<p>No a</p>" : "") +
-                (find_b == args.end() ? "<p>No b</p>" : "") +
-                "<h2>Map Contains:</h2>"
-                "<ul>" + MapConcat(args, [] (const POSTValues::value_type& v) {
-                        return "<li>" + v.first + ": " + v.second + "</li>";
-                        }) + "</ul>";
+            html <<
+                H1() << "Compute Stuff" << Close();
+
+                if (find_a == args.end())
+                    html << P() << "No a" << Close();
+
+                if (find_b == args.end())
+                    html << P() << "No b" << Close();
+
+                html << H2() << "Map Contains" << Close() <<
+                Ul();
+
+                for (auto& arg : args)
+                    html << Li() << arg.first + ": " + arg.second << Close();
+
+                html << Close();
         }
     }
-    return "INVALID";
+    return html;
 }
 
 int main(int argc, char** argv) {

@@ -131,7 +131,7 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
                     R"(<script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>)"
                 "</head>"
                 "<body lang=\"en\"><div class=\"container\">" +
-                res->second(method, info->args) +
+                res->second(method, info->args).Get() +
                 "</div></body>"
             "</html>";
 
@@ -145,37 +145,42 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
     return not_found_page(cls, connection);
 }
 
-std::string Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
-    std::string page;
-    page +=
-            "<ul>";
-    g_data_access.lock();
-    page += MAP_CONCAT(g_data, v, "<li>" + v.first + ": " + ToCSV(v.second) + "</li>")
-        + "<div class=\"row\">"
-        + Chart("monitoring_ram")
-            .Label("Time")
-            .Value("Available RAM")
-            .Get()
-        + Chart("monitoring_cpu")
-            .Label("Time")
-            .Value("CPU")
-            .Get()
-        + "</div><h1>Status</h1><ul>"
-        + MAP_CONCAT(g_status, v, "<li>" + v.first + ": " + v.second + "</li>");
-    g_data_access.unlock();
-    page += "</ul>";
+Html Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
+    Html html;
+    html <<
+        Ul();
+            g_data_access.lock();
+            for (auto& v : g_data)
+                html << Li() << v.first + ": " + ToCSV(v.second) << Close();
+    html
+        << Close();
+            g_data_access.unlock();
 
-    return page;
+    html <<
+        Div().AddClass("row") <<
+            Chart("monitoring_ram").Label("Time").Value("Available RAM").Get() <<
+            Chart("monitoring_cpu").Label("Time").Value("CPU").Get() <<
+        Close() <<
+        H1() << "Status" << Close() <<
+        Ul();
+
+        for (auto& v : g_status)
+            html << Li() << v.first + ": " + v.second << Close();
+
+    html
+        << Close();
+    return html;
 }
 
-std::string LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
-    std::string page;
-    page += "<ul>";
+Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
+    Html html;
+    html << Ul();
     g_data_access.lock();
-    page += MAP_CONCAT(g_callbacks, v, "<li><a href=\"" + v.first + "\">" + v.first + "</a></li>");
+    for (auto& v : g_callbacks)
+        html << Li() << A().Attr("href", v.first) << v.first << Close() << Close();
     g_data_access.unlock();
-    page += "</ul>";
-    return page;
+    html << Close();
+    return html;
 }
 
 static bool g_continue = true;
