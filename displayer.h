@@ -6,9 +6,11 @@
 #include <map>
 #include <boost/circular_buffer.hpp>
 
-#include "html.h"
-
 typedef std::map<std::string, std::string> POSTValues ;
+
+#include "html.h"
+#include "job.h"
+
 typedef std::function<Html(const std::string&, const POSTValues&)> UrlHandler;
 typedef std::map<std::string, boost::circular_buffer<size_t>> DataLog;
 
@@ -58,6 +60,7 @@ void StopHttpInterface();
 void ServiceLoopForever();
 
 void RegisterUrl(const std::string& str, const UrlHandler& f);
+void RegisterJob(const JobDesc& jd);
 
 void SetStatusVar(const std::string& name, const std::string& value);
 void LogData(const std::string& name, size_t value);

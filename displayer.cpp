@@ -28,6 +28,7 @@ static std::map<std::string, std::string> g_status;
 static std::map<std::string, UrlHandler> g_callbacks;
 static std::string g_name;
 static std::mutex g_data_access;
+static std::vector<JobDesc> g_jobs;
 
 const DataLog& GetDataLog() {
     return g_data;
@@ -79,6 +80,30 @@ iterate_post(void* coninfo_cls, enum MHD_ValueKind, const char* key,
   return MHD_YES;
 }
 
+std::string MakePage(const std::string& content) {
+    return (Html() <<
+        "<!DOCTYPE html>"
+        "<html>"
+           "<head>"
+                R"(<meta charset="utf-8")"
+                R"(<meta http-equiv="X-UA-Compatible" content="IE=edge">)"
+                R"(<meta name="viewport" content="width=device-width, initial-scale=1">)"
+                R"(<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">)"
+                R"(<link rel="stylesheet" href="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.css">)"
+                R"(<script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>)"
+            "</head>"
+            "<body lang=\"en\">"
+                "<div class=\"container\">" <<
+                content <<
+                "</div>"
+            "</body>"
+        "</html>").Get();
+}
+
+std::string MakePage(const Html& content) {
+    return MakePage(content.Get());
+}
+
 static int answer_to_connection(void *cls, struct MHD_Connection *connection, const char *url,
         const char *method, const char* /* version */, const char *upload_data, size_t *upload_data_size,
         void **con_cls)
@@ -100,31 +125,35 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
         return MHD_YES;
     }
 
+    MHD_get_connection_values(connection, MHD_POSTDATA_KIND,
+            [](void* cls, MHD_ValueKind, const char* k, const char* v) {
+                POSTValues& post = *static_cast<POSTValues*>(cls);
+                std::cerr << k << ": " << v << std::endl;
+                post[k] = v;
+                return MHD_YES;
+            }, &info->args);
     auto res = g_callbacks.find(url);
     if (res != g_callbacks.end()) {
-        MHD_get_connection_values(connection, MHD_POSTDATA_KIND,
-                [](void* cls, MHD_ValueKind, const char* k, const char* v) {
-                    POSTValues& post = *static_cast<POSTValues*>(cls);
-                    std::cerr << k << ": " << v << std::endl;
-                    post[k] = v;
-                    return MHD_YES;
-                }, &info->args);
-        info->page =
-            "<!DOCTYPE html>"
-            "<html>"
-               "<head>"
-                    R"(<meta charset="utf-8")"
-                    R"(<meta http-equiv="X-UA-Compatible" content="IE=edge">)"
-                    R"(<meta name="viewport" content="width=device-width, initial-scale=1">)"
-                    R"(<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">)"
-                    R"(<link rel="stylesheet" href="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.css">)"
-                    R"(<script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>)"
-                "</head>"
-                "<body lang=\"en\"><div class=\"container\">" +
-                res->second(method, info->args).Get() +
-                "</div></body>"
-            "</html>";
+        info->page = MakePage(res->second(method, info->args));
+    }
 
+    auto j_res = std::find_if(g_jobs.begin(), g_jobs.end(), [&](const JobDesc& j) {
+            return j.url == url;
+        });
+
+    if (j_res != g_jobs.end()) {
+        if (!strcmp(method, "GET")) {
+            info->page = MakePage(j_res->MakeForm());
+        } else {
+            if (j_res->synchronous) {
+                info->page = MakePage(j_res->Exec(info->args));
+            }
+        }
+    }
+
+    if (info->page.empty()) {
+        return not_found_page(cls, connection);
+    } else {
         struct MHD_Response *response = MHD_create_response_from_buffer(info->page.size(),
                 (void*) info->page.c_str(), MHD_RESPMEM_PERSISTENT);
         int ret = MHD_queue_response(connection, MHD_HTTP_OK, response);
@@ -132,7 +161,6 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
         MHD_destroy_response(response);
         return ret;
     }
-    return not_found_page(cls, connection);
 }
 
 Html Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
@@ -164,10 +192,16 @@ Html Status(const std::string& /* method */, const std::map<std::string, std::st
 
 Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
     Html html;
+    html << H2() << "Pages" << Close();
     html << Ul();
     g_data_access.lock();
     for (auto& v : g_callbacks)
         html << Li() << A().Attr("href", v.first) << v.first << Close() << Close();
+    html << Close();
+
+    html << Ul();
+    for (auto& j : g_jobs)
+        html << Li() << A().Attr("href", j.url) << j.name << Close() << Close();
     g_data_access.unlock();
     html << Close();
     return html;
@@ -264,6 +298,12 @@ bool InitHttpInterface() {
 void RegisterUrl(const std::string& str, const UrlHandler& f) {
     g_data_access.lock();
     g_callbacks.insert(std::make_pair(str, f));
+    g_data_access.unlock();
+}
+
+void RegisterJob(const JobDesc& jd) {
+    g_data_access.lock();
+    g_jobs.push_back(jd);
     g_data_access.unlock();
 }
 

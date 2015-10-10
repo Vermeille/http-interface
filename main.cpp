@@ -1,4 +1,5 @@
 #include <glog/logging.h>
+#include <folly/Conv.h>
 
 #include "displayer.h"
 #include "job.h"
@@ -8,44 +9,17 @@ static const JobDesc compute_stuff = {
     "Compute Stuff",
     "/compute",
     "Compute a + b",
-    true,
-    [](const std::vector<std::string>&) { return "jkjhk"; }
-};
-
-Html ComputeStuff(const std::string& method, const POSTValues& args) {
-    Html html;
-    if (method == "GET") {
-        return compute_stuff.TaskToForm();
-    } else if (method == "POST") {
-        bool error = false;
-        for (auto& a : compute_stuff.args) {
-            if (args.find(a.name) == args.end()) {
-                html << Div().AddClass("alert alert-danger")
-                    << a.name << " was not provided." <<
-                Close();
-                error = true;
-            }
-        }
-
-        if (error) {
-            return html;
-        }
-
-        int a = std::atoi(args.find("a")->second.c_str());
-        int b = std::atoi(args.find("b")->second.c_str());
-        SetStatusVar("Has Computed", std::to_string(a + b));
-
-        html <<
-            H1() << compute_stuff.desc << Close() <<
-            P() << "Result:" + std::to_string(a + b) << Close();
+    true /* synchronous */,
+    true /* reentrant */,
+    [](const std::vector<std::string>& vs) {
+        return folly::to<std::string>(folly::to<int>(vs[0]) + folly::to<int>(vs[1]));
     }
-    return html;
-}
+};
 
 int main(int argc, char** argv) {
     InitHttpInterface();
 
-    RegisterUrl("/compute", ComputeStuff);
+    RegisterJob(compute_stuff);
     SetStatusVar("Has Computed", "false");
     ServiceLoopForever();
     StopHttpInterface();
