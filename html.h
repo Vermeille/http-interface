@@ -52,11 +52,15 @@ struct Form : public Tag {
         Attr("method", method).Attr("action", action);
     }
 };
-struct InputNumber : public Tag {
-    InputNumber() : Tag("input") {
+struct Input : public Tag {
+    Input() : Tag("input") { Autoclose(); }
+    Tag& Name(const std::string& name) { return Attr("name", name); }
+};
+
+struct InputNumber : public Input {
+    InputNumber() : Input() {
         Attr("type", "number").Autoclose();
     }
-    Tag& Name(const std::string& name) { return Attr("name", name); }
 };
 struct Submit : public Tag { Submit() : Tag("input") { Attr("type", "submit").Autoclose(); } };
 

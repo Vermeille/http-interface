@@ -64,3 +64,4 @@ void RegisterJob(const JobDesc& jd);
 
 void SetStatusVar(const std::string& name, const std::string& value);
 void LogData(const std::string& name, size_t value);
+

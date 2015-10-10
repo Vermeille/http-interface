@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <ctime>
 #include <fstream>
+#include <ctime>
 
 #include "displayer.h"
 #include "chart.h"
@@ -26,9 +27,8 @@ static std::thread* g_monitoring_thread;
 static DataLog g_data;
 static std::map<std::string, std::string> g_status;
 static std::map<std::string, UrlHandler> g_callbacks;
-static std::string g_name;
 static std::mutex g_data_access;
-static std::vector<JobDesc> g_jobs;
+static std::vector<RunningJobs> g_jobs;
 
 const DataLog& GetDataLog() {
     return g_data;
@@ -85,7 +85,7 @@ std::string MakePage(const std::string& content) {
         "<!DOCTYPE html>"
         "<html>"
            "<head>"
-                R"(<meta charset="utf-8")"
+                R"(<meta charset="utf-8">)"
                 R"(<meta http-equiv="X-UA-Compatible" content="IE=edge">)"
                 R"(<meta name="viewport" content="width=device-width, initial-scale=1">)"
                 R"(<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">)"
@@ -137,17 +137,15 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
         info->page = MakePage(res->second(method, info->args));
     }
 
-    auto j_res = std::find_if(g_jobs.begin(), g_jobs.end(), [&](const JobDesc& j) {
-            return j.url == url;
+    auto j_res = std::find_if(g_jobs.begin(), g_jobs.end(), [&](const RunningJobs& j) {
+            return j.desc.url == url;
         });
 
     if (j_res != g_jobs.end()) {
         if (!strcmp(method, "GET")) {
-            info->page = MakePage(j_res->MakeForm());
+            info->page = MakePage(j_res->desc.MakeForm());
         } else {
-            if (j_res->synchronous) {
-                info->page = MakePage(j_res->Exec(info->args));
-            }
+            info->page = MakePage(j_res->Exec(info->args));
         }
     }
 
@@ -197,12 +195,40 @@ Html LandingPage(const std::string& /* method */, const std::map<std::string, st
     g_data_access.lock();
     for (auto& v : g_callbacks)
         html << Li() << A().Attr("href", v.first) << v.first << Close() << Close();
-    html << Close();
-
-    html << Ul();
+    html <<
+        Close() <<
+        H2() << "Jobs" << Close()  <<
+        Ul();
     for (auto& j : g_jobs)
-        html << Li() << A().Attr("href", j.url) << j.name << Close() << Close();
+        html << Li() << A().Attr("href", j.desc.url) << j.desc.name << Close() << Close();
     g_data_access.unlock();
+    html << Close();
+    return html;
+}
+
+Html JobStatuses(const std::string& /* method */, const POSTValues&) {
+    Html html;
+    html << H2() << "Running jobs" << Close() <<
+        Tag("table").AddClass("table") <<
+            Tag("tr") <<
+                Tag("th") << "Job" << Close() <<
+                Tag("th") << "Started" << Close() <<
+                Tag("th") << "Finished" << Close() <<
+            Close();
+
+    for (const auto& j : g_jobs) {
+        for (const auto& rj : j.statuses) {
+            auto time = std::chrono::system_clock::to_time_t(rj.start);
+            bool finished = rj.job.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+            html <<
+                Tag("tr") <<
+                    Tag("td") << j.desc.name << Close() <<
+                    Tag("td") << std::ctime(&time) << Close() <<
+                    Tag("td") << (finished ? "true" : "false") << Close() <<
+                Close();
+        }
+    }
+
     html << Close();
     return html;
 }
@@ -247,6 +273,7 @@ Stats GetMonitoringStats() {
 }
 
 bool InitHttpInterface() {
+    google::InstallFailureSignalHandler();
     g_data_access.lock();
     g_data["Available RAM"].rset_capacity(20);
     g_data["CPU"].rset_capacity(20);
@@ -291,6 +318,7 @@ bool InitHttpInterface() {
 
     g_callbacks["/"] = &LandingPage;
     g_callbacks["/status"] = &Status;
+    g_callbacks["/jobs"] = &JobStatuses;
 
     return true;
 }
@@ -303,7 +331,7 @@ void RegisterUrl(const std::string& str, const UrlHandler& f) {
 
 void RegisterJob(const JobDesc& jd) {
     g_data_access.lock();
-    g_jobs.push_back(jd);
+    g_jobs.emplace_back(jd);
     g_data_access.unlock();
 }
 
