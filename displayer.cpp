@@ -125,7 +125,7 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
         return MHD_YES;
     }
 
-    MHD_get_connection_values(connection, MHD_POSTDATA_KIND,
+    MHD_get_connection_values(connection, (MHD_ValueKind)((int)MHD_POSTDATA_KIND | (int)MHD_GET_ARGUMENT_KIND),
             [](void* cls, MHD_ValueKind, const char* k, const char* v) {
                 POSTValues& post = *static_cast<POSTValues*>(cls);
                 std::cerr << k << ": " << v << std::endl;
@@ -149,6 +149,7 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
         }
     }
 
+    std::lock_guard<std::mutex> lock(g_data_access);
     if (info->page.empty()) {
         return not_found_page(cls, connection);
     } else {
@@ -164,24 +165,16 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
 Html Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
     Html html;
     html <<
-        Ul();
-            g_data_access.lock();
-            for (auto& v : g_data)
-                html << Li() << v.first + ": " + ToCSV(v.second) << Close();
-    html
-        << Close();
-            g_data_access.unlock();
-
-    html <<
+        H1() << "Monitoring status" << Close() <<
         Div().AddClass("row") <<
             Chart("monitoring_ram").Label("Time").Value("Available RAM").Get() <<
             Chart("monitoring_cpu").Label("Time").Value("CPU").Get() <<
         Close() <<
-        H1() << "Status" << Close() <<
+        H1() << "Status variables" << Close() <<
         Ul();
 
-        for (auto& v : g_status)
-            html << Li() << v.first + ": " + v.second << Close();
+    for (auto& v : g_status)
+        html << Li() << v.first + ": " + v.second << Close();
 
     html
         << Close();
@@ -214,19 +207,61 @@ Html JobStatuses(const std::string& /* method */, const POSTValues&) {
                 Tag("th") << "Job" << Close() <<
                 Tag("th") << "Started" << Close() <<
                 Tag("th") << "Finished" << Close() <<
+                Tag("th") << "Details" << Close() <<
             Close();
 
     for (const auto& j : g_jobs) {
-        for (const auto& rj : j.statuses) {
+        for (size_t i = 0; i < j.statuses.size(); ++i) {
+            auto& rj = j.statuses[i];
             auto time = std::chrono::system_clock::to_time_t(rj.start);
-            bool finished = rj.job.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
             html <<
                 Tag("tr") <<
                     Tag("td") << j.desc.name << Close() <<
                     Tag("td") << std::ctime(&time) << Close() <<
-                    Tag("td") << (finished ? "true" : "false") << Close() <<
+                    Tag("td") << (rj.IsFinished() ? "true" : "false") << Close() <<
+                    Tag("td") <<
+                        A().Attr("href",
+                                "/job?job_url=" + j.desc.url
+                                + "&id=" + std::to_string(i)) << 
+                            "See" <<
+                        Close() <<
+                    Close() <<
                 Close();
         }
+    }
+
+    html << Close();
+    return html;
+}
+
+Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
+    auto url = vs.find("job_url");
+    auto id = vs.find("id");
+
+    if (url == vs.end() || id == vs.end()) {
+        return Html() << "This job does not exist";
+    }
+
+    const JobStatus* rj = nullptr;
+    for (const auto& j : g_jobs) {
+        if (j.desc.url == url->second) {
+            rj = &j.statuses[std::atoi(id->second.c_str())];
+        }
+    }
+
+    if (!rj) {
+        return Html() << "job not found";
+    }
+    auto time = std::chrono::system_clock::to_time_t(rj->start);
+
+    Html html;
+    html <<
+        H1() << "Job Details" << Close() <<
+        Div() <<
+            P() << "Started on: " << std::ctime(&time) << Close();
+
+    if (rj->IsFinished()) {
+        html << rj->result;
     }
 
     html << Close();
@@ -319,6 +354,7 @@ bool InitHttpInterface() {
     g_callbacks["/"] = &LandingPage;
     g_callbacks["/status"] = &Status;
     g_callbacks["/jobs"] = &JobStatuses;
+    g_callbacks["/job"] = &JobDetails;
 
     return true;
 }

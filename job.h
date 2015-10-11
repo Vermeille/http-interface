@@ -58,11 +58,29 @@ struct JobDesc {
 
 struct JobStatus {
     std::chrono::system_clock::time_point start;
-    std::future<Html> job;
+    mutable std::future<Html> job;
+    std::vector<std::string> args;
+    mutable Html result;
+    mutable bool finished;
 
-    JobStatus(std::chrono::system_clock::time_point s, std::future<Html>&& future) :
-        start(s), job(std::move(future)) {}
     JobStatus(JobStatus&&) = default;
+    template <class F>
+    JobStatus(F&& f, const std::vector<std::string>& args)
+        : start(std::chrono::system_clock::now()),
+        job(std::async(std::launch::async, f, args)),
+        finished(false) {
+    }
+
+    bool IsFinished() const {
+        if (finished == false) {
+            bool ended = job.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+            finished = ended;
+            if (finished && job.valid()) {
+                result = job.get();
+            }
+        }
+        return finished;
+    }
 };
 
 struct RunningJobs {
@@ -106,9 +124,7 @@ struct RunningJobs {
             html << desc.DisplayResult(desc.exec(args));
             return html;
         } else {
-            statuses.emplace_back(JobStatus(std::chrono::system_clock::now(),
-                    std::async(std::launch::async, desc.exec, args))
-                );
+            statuses.emplace_back(JobStatus(desc.exec, args));
 
             html <<
                 H2() << "Your job have started" << Close() <<
