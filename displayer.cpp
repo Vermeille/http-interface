@@ -80,6 +80,8 @@ iterate_post(void* coninfo_cls, enum MHD_ValueKind, const char* key,
   return MHD_YES;
 }
 
+Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&);
+
 std::string MakePage(const std::string& content) {
     return (Html() <<
         "<!DOCTYPE html>"
@@ -93,8 +95,13 @@ std::string MakePage(const std::string& content) {
                 R"(<script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>)"
             "</head>"
             "<body lang=\"en\">"
-                "<div class=\"container\">" <<
-                content <<
+                "<div class=\"container\">"
+                    "<div class=\"col-md-9\">" <<
+                        content <<
+                    "</div>"
+                    "<div class=\"col-md-3\">" <<
+                        LandingPage("GET", {}) <<
+                    "</div>"
                 "</div>"
             "</body>"
         "</html>").Get();
@@ -183,14 +190,14 @@ Html Status(const std::string& /* method */, const std::map<std::string, std::st
 
 Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
     Html html;
-    html << H2() << "Pages" << Close();
+    html << H3() << "Pages" << Close();
     html << Ul();
     g_data_access.lock();
     for (auto& v : g_callbacks)
         html << Li() << A().Attr("href", v.first) << v.first << Close() << Close();
     html <<
         Close() <<
-        H2() << "Jobs" << Close()  <<
+        H3() << "Jobs" << Close()  <<
         Ul();
     for (auto& j : g_jobs)
         html << Li() << A().Attr("href", j.desc.url) << j.desc.name << Close() << Close();
