@@ -28,7 +28,7 @@ static DataLog g_data;
 static std::map<std::string, std::string> g_status;
 static std::map<std::string, UrlHandler> g_callbacks;
 static std::mutex g_data_access;
-static std::vector<RunningJobs> g_jobs;
+static RunningJobs g_jobs;
 
 const DataLog& GetDataLog() {
     return g_data;
@@ -144,15 +144,13 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
         info->page = MakePage(res->second(method, info->args));
     }
 
-    auto j_res = std::find_if(g_jobs.begin(), g_jobs.end(), [&](const RunningJobs& j) {
-            return j.desc.url == url;
-        });
+    auto j_res = g_jobs.FindDescriptor(url);
 
-    if (j_res != g_jobs.end()) {
+    if (j_res) {
         if (!strcmp(method, "GET")) {
-            info->page = MakePage(j_res->desc.MakeForm());
+            info->page = MakePage(j_res->MakeForm());
         } else {
-            info->page = MakePage(j_res->Exec(info->args));
+            info->page = MakePage(g_jobs.Exec(url, info->args));
         }
     }
 
@@ -198,63 +196,23 @@ Html LandingPage(const std::string& /* method */, const std::map<std::string, st
     html <<
         Close() <<
         H3() << "Jobs" << Close()  <<
-        Ul();
-    for (auto& j : g_jobs)
-        html << Li() << A().Attr("href", j.desc.url) << j.desc.name << Close() << Close();
+        g_jobs.RenderListOfDescriptors();
     g_data_access.unlock();
-    html << Close();
     return html;
 }
 
 Html JobStatuses(const std::string& /* method */, const POSTValues&) {
-    Html html;
-    html << H2() << "Running jobs" << Close() <<
-        Tag("table").AddClass("table") <<
-            Tag("tr") <<
-                Tag("th") << "Job" << Close() <<
-                Tag("th") << "Started" << Close() <<
-                Tag("th") << "Finished" << Close() <<
-                Tag("th") << "Details" << Close() <<
-            Close();
-
-    for (const auto& j : g_jobs) {
-        for (size_t i = 0; i < j.statuses.size(); ++i) {
-            auto& rj = j.statuses[i];
-            auto time = std::chrono::system_clock::to_time_t(rj.start);
-            html <<
-                Tag("tr") <<
-                    Tag("td") << j.desc.name << Close() <<
-                    Tag("td") << std::ctime(&time) << Close() <<
-                    Tag("td") << (rj.IsFinished() ? "true" : "false") << Close() <<
-                    Tag("td") <<
-                        A().Attr("href",
-                                "/job?job_url=" + j.desc.url
-                                + "&id=" + std::to_string(i)) << 
-                            "See" <<
-                        Close() <<
-                    Close() <<
-                Close();
-        }
-    }
-
-    html << Close();
-    return html;
+    return Html() << H2() << "Running jobs" << Close() << g_jobs.RenderTableOfRunningJobs();
 }
 
 Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
-    auto url = vs.find("job_url");
     auto id = vs.find("id");
 
-    if (url == vs.end() || id == vs.end()) {
+    if (id == vs.end()) {
         return Html() << "This job does not exist";
     }
 
-    const JobStatus* rj = nullptr;
-    for (const auto& j : g_jobs) {
-        if (j.desc.url == url->second) {
-            rj = &j.statuses[std::atoi(id->second.c_str())];
-        }
-    }
+    const JobStatus* rj = g_jobs.FindJobWithId(std::atoi(id->second.c_str()));
 
     if (!rj) {
         return Html() << "job not found";
@@ -374,7 +332,7 @@ void RegisterUrl(const std::string& str, const UrlHandler& f) {
 
 void RegisterJob(const JobDesc& jd) {
     g_data_access.lock();
-    g_jobs.emplace_back(jd);
+    g_jobs.AddDescriptor(jd);
     g_data_access.unlock();
 }
 

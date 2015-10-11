@@ -34,6 +34,26 @@ struct JobDesc {
     bool reentrant;
     std::function<Html(const std::vector<std::string>&)> exec;
 
+    std::tuple<bool, Html, std::vector<std::string>> ValidateParams(const POSTValues& vs) {
+        std::vector<std::string> args_values;
+        bool error = false;
+        Html html;
+
+        for (auto& a : args) {
+            auto arg_value = vs.find(a.name);
+            if (arg_value == vs.end()) {
+                html << Div().AddClass("alert alert-danger")
+                    << a.name << " was not provided." <<
+                Close();
+                error = true;
+            } else {
+                args_values.push_back(arg_value->second);
+            }
+        }
+
+        return std::make_tuple(error, html, args_values);
+    }
+
     Html MakeForm() const {
         auto html = Html() <<
             H1() << name << Close() <<
@@ -62,13 +82,14 @@ struct JobStatus {
     std::vector<std::string> args;
     mutable Html result;
     mutable bool finished;
+    const JobDesc* const desc;
 
     JobStatus(JobStatus&&) = default;
-    template <class F>
-    JobStatus(F&& f, const std::vector<std::string>& args)
+    JobStatus(const JobDesc* desc, const std::vector<std::string>& args)
         : start(std::chrono::system_clock::now()),
-        job(std::async(std::launch::async, f, args)),
-        finished(false) {
+        job(std::async(std::launch::async, desc->exec, args)),
+        finished(false),
+        desc(desc) {
     }
 
     bool IsFinished() const {
@@ -84,55 +105,106 @@ struct JobStatus {
 };
 
 struct RunningJobs {
-    const JobDesc desc;
-    std::vector<JobStatus> statuses;
+    std::map<size_t, JobStatus> statuses;
+    std::map<std::string, JobDesc> descriptors_;
 
-    RunningJobs(const JobDesc& d) : desc(d) {}
+    RunningJobs() = default;
     RunningJobs(RunningJobs&&) = default;
 
-    std::tuple<bool, Html, std::vector<std::string>> ValidateParams(const POSTValues& vs) {
-        std::vector<std::string> args_values;
-        bool error = false;
-        Html html;
+    JobDesc* FindDescriptor(const std::string& url) {
+        auto desc = descriptors_.find(url);
 
-        for (auto& a : desc.args) {
-            auto arg_value = vs.find(a.name);
-            if (arg_value == vs.end()) {
-                html << Div().AddClass("alert alert-danger")
-                    << a.name << " was not provided." <<
-                Close();
-                error = true;
-            } else {
-                args_values.push_back(arg_value->second);
-            }
+        if (desc == descriptors_.end()) {
+            return nullptr;
+        } else {
+            return &desc->second;
         }
-
-        return std::make_tuple(error, html, args_values);
     }
 
-    Html Exec(const POSTValues& vs) {
+    void AddDescriptor(const JobDesc& jd) {
+        descriptors_[jd.url] = jd;
+    }
+
+    Html RenderTableOfRunningJobs() const {
+        Html html;
+        html <<
+            Tag("table").AddClass("table") <<
+                Tag("tr") <<
+                    Tag("th") << "Job" << Close() <<
+                    Tag("th") << "Started" << Close() <<
+                    Tag("th") << "Finished" << Close() <<
+                    Tag("th") << "Details" << Close() <<
+                Close();
+
+        for (const auto& rj : statuses) {
+            auto time = std::chrono::system_clock::to_time_t(rj.second.start);
+            html <<
+                Tag("tr") <<
+                    Tag("td") << rj.second.desc->name << Close() <<
+                    Tag("td") << std::ctime(&time) << Close() <<
+                    Tag("td") << (rj.second.IsFinished() ? "true" : "false") << Close() <<
+                    Tag("td") <<
+                        A().Attr("href", "/job?id=" + std::to_string(rj.first)) <<
+                            "See" <<
+                        Close() <<
+                    Close() <<
+                Close();
+        }
+
+        html << Close();
+        return html;
+    }
+
+    Html RenderListOfDescriptors() const {
+        Html html;
+
+        html << Ul();
+        for (auto& j : descriptors_)
+            html << Li() << A().Attr("href", j.second.url) << j.second.name << Close() << Close();
+        html << Close();
+        return html;
+    }
+
+    JobStatus* FindJobWithId(size_t id) {
+        auto job = statuses.find(id);
+
+        if (job == statuses.end()) {
+            return nullptr;
+        } else {
+            return &job->second;
+        }
+    }
+
+    Html Exec(const std::string& url, const POSTValues& vs) {
+        auto descriptor = descriptors_.find(url);
+
+        if (descriptor == descriptors_.end()) {
+            LOG(FATAL) << url << " doesn't exist in the jobs pool";
+        }
+        JobDesc* desc = &descriptor->second;
+
         bool error;
         Html html;
         std::vector<std::string> args;
-        std::tie(error, html, args) = ValidateParams(vs);
+        std::tie(error, html, args) = descriptor->second.ValidateParams(vs);
 
         if (error) {
             return html;
         }
 
-        if (desc.synchronous) {
-            html << desc.DisplayResult(desc.exec(args));
+        if (desc->synchronous) {
+            html << desc->DisplayResult(desc->exec(args));
             return html;
         } else {
-            statuses.emplace_back(JobStatus(desc.exec, args));
+            statuses.emplace(std::make_pair(statuses.size(), JobStatus(desc, args)));
 
             html <<
                 H2() << "Your job have started" << Close() <<
-                H3() << desc.name << Close();
+                H3() << desc->name << Close();
 
             html << Ul();
             for (size_t i = 0; i < args.size(); ++i) {
-                html << Li() << desc.args[i].name << " = " << args[i] << Close();
+                html << Li() << desc->args[i].name << " = " << args[i] << Close();
             }
             html << Close();
             return html;
