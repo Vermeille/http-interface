@@ -22,6 +22,8 @@
 #define PORT 8888
 #define NOT_FOUND_ERROR "<html><head><title>Not found</title></head><body>Go away.</body></html>"
 
+/* WARNING / FIXME: race conditions everywhere, mutex badly used */
+
 static struct MHD_Daemon *g_daemon;
 static std::thread* g_monitoring_thread;
 static DataLog g_data;
@@ -247,16 +249,20 @@ struct Stats {
 };
 
 Stats GetMonitoringStats() {
+    static const int kUserTimeIndex = 14;
+    static const int kKernelTimeIndex = 15;
+    static const int kVirtualSizeIndex = 23;
+
     std::ifstream stat("/proc/self/stat");
     Stats s;
 
     int i = 1;
     while (stat) {
-        if (i == 14)
+        if (i == kUserTimeIndex)
             stat >> s.utime;
-        else if (i == 15)
+        else if (i == kKernelTimeIndex)
             stat >> s.stime;
-        else if (i == 23)
+        else if (i == kVirtualSizeIndex)
             stat >> s.vsize;
         else if (i == 2 || i == 3) {
             std::string ignore;

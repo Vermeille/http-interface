@@ -10,10 +10,12 @@
 #include "displayer.h"
 #include "html.h"
 
+// Represent the arguments a job can take in order to define them.
+// TODO: type validator
 class Arg {
-    std::string name_;
-    std::string type_;
-    std::string desc_;
+    std::string name_;  // formal name
+    std::string type_;  // from now, it takes the possibles values of an HTML's input tag
+    std::string desc_;  // short text describing the argument
   public:
 
     Arg(const std::string& name, const std::string& type, const std::string& desc)
@@ -35,15 +37,17 @@ class Arg {
     }
 };
 
+// Describe a job, generate the HTML for jobs.
 class JobDesc {
-    std::vector<Arg> args_;
-    std::string name_;
-    std::string url_;
-    std::string desc_;
-    bool synchronous_;
-    bool reentrant_;
-    std::function<Html(const std::vector<std::string>&)> exec_;
+    std::vector<Arg> args_;  // the job's prototype
+    std::string name_;  // short name of the job shown in lists etc
+    std::string url_;  // url on which this job will be mapped. Must start with /
+    std::string desc_;  // text describing what the job does
+    bool synchronous_;  // if synchronous, result will be given immediately. If not, queue a job.
+    bool reentrant_;  // if not reentrant, only one running instance of the job is allowed
+    std::function<Html(const std::vector<std::string>&)> exec_;  // the actual function called
   public:
+
     typedef std::function<Html(const std::vector<std::string>&)> function_type;
 
     const std::vector<Arg>& args() const { return args_; }
@@ -61,6 +65,8 @@ class JobDesc {
         reentrant_(reentrant), exec_(fun) {
     }
 
+    // return true and a vector of parameters if all the arguments are present in vs
+    // return false and an error page if they're not
     std::tuple<bool, Html, std::vector<std::string>> ValidateParams(const POSTValues& vs) {
         std::vector<std::string> args_values;
         bool error = false;
@@ -103,6 +109,7 @@ class JobDesc {
     }
 };
 
+// Describe a running instance of a job
 class JobStatus {
     std::chrono::system_clock::time_point start_;
     mutable std::future<Html> job_;
@@ -145,6 +152,7 @@ class JobStatus {
     }
 };
 
+// pool keeping all the running instances, allowing to start a new job, check their statuses, etc
 struct RunningJobs {
     std::map<size_t, JobStatus> statuses;
     std::map<std::string, JobDesc> descriptors_;
@@ -235,6 +243,8 @@ struct RunningJobs {
         if (error) {
             return html;
         }
+
+        // TODO: reentrance
 
         if (desc->IsSynchronous()) {
             html << desc->DisplayResult(desc->function()(args));

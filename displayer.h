@@ -16,7 +16,6 @@ typedef std::map<std::string, boost::circular_buffer<size_t>> DataLog;
 
 const DataLog& GetDataLog();
 
-#define MAP_CONCAT(C, I, B) MapConcat(C, [] (const typename decltype (C)::value_type& I) { return B; })
 #define MAP_INTERSPERSE(C, S, I, B) \
     MapIntersperse(C, S, [](const typename decltype (C)::value_type& I) { return B; })
 
@@ -41,27 +40,15 @@ std::string MapIntersperse(const T& vs, const std::string& sep, F&& f) {
 template <class T>
 std::string ToCSV(const T& vs) { return Intersperse(vs, ", "); }
 
-template <class T, class F>
-std::string MapConcat(const T& vs, F&& f) {
-    return std::accumulate(vs.begin(), vs.end(), std::string(""),
-            [&f](const std::string& str, const typename T::value_type& v) {
-                return str + f(v);
-            }
-        );
-}
+bool InitHttpInterface();  // call in the beginning of main()
+void StopHttpInterface();  // may be ueless depending on the use case
+void ServiceLoopForever();  // a convenience function for a proper event loop
 
-template <class T>
-std::string Concat(const T& vs) {
-    return std::accumulate(vs.begin(), vs.end(), std::string(""));
-}
+void RegisterUrl(const std::string& str, const UrlHandler& f);  // call f is url is accessed
+void RegisterJob(const JobDesc& jd);  // maps the job to its url etc
 
-bool InitHttpInterface();
-void StopHttpInterface();
-void ServiceLoopForever();
-
-void RegisterUrl(const std::string& str, const UrlHandler& f);
-void RegisterJob(const JobDesc& jd);
-
+// set an overridable value that you can see on the status page. Useful for non numeric info
 void SetStatusVar(const std::string& name, const std::string& value);
+// values are logged and accumulated. Log a bunch of data, and draw a chart out of it
 void LogData(const std::string& name, size_t value);
 

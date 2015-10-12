@@ -6,6 +6,8 @@
 
 #include <glog/logging.h>
 
+// Abstract a HTML tag.
+// TODO: quote escape tags, etc
 class Tag {
     std::string tag_;
     std::map<std::string, std::string> attributes_;
@@ -64,8 +66,11 @@ struct InputNumber : public Input {
 };
 struct Submit : public Tag { Submit() : Tag("input") { Attr("type", "submit").Autoclose(); } };
 
+// I don't have any better, sadly
 class Close {};
 
+// An Html document stream-like. It also makes sure you don't forget to close your tags.
+// TODO: escaping, handling more data types
 class Html {
         std::stack<std::string> tags_;
         std::string content_;

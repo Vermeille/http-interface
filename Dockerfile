@@ -3,8 +3,11 @@ FROM ubuntu:14.04
 ENV CC gcc
 ENV CXX  g++
 
+# What is the best practice regarding workdir?
 WORKDIR /root
 
+# TODO: this was intended as a very general dev platform, but the http interface doesn't need
+# all of this. Purge the unnecessary
 RUN apt-get update &&  apt-get install -y \
          bison \
          cmake \
@@ -36,6 +39,7 @@ RUN apt-get update &&  apt-get install -y \
          pkg-config \
          libssl-dev
 
+# Http Interface runs on GNU libmicrohttpd
 RUN git clone https://github.com/Metaswitch/libmicrohttpd --depth=1 && \
     cd libmicrohttpd && \
     chmod +x ./configure && \
@@ -43,6 +47,7 @@ RUN git clone https://github.com/Metaswitch/libmicrohttpd --depth=1 && \
     cd .. && \
     rm -rf libmicrohttpd
 
+# folly is not necessary for http interface
 RUN git clone https://github.com/facebook/folly && \
     cd folly/folly && \
     git checkout v0.57.0 && \
@@ -50,6 +55,8 @@ RUN git clone https://github.com/facebook/folly && \
     cd ../.. && \
     rm -rf folly
 
+# Haven't dived much into wangle, but I'm sure we could use it for http interface and remove a lot
+# of code, for a much better quality
 RUN git clone https://github.com/facebook/wangle --depth=1 && \
     cd wangle/wangle && \
     cmake . && \
@@ -58,6 +65,7 @@ RUN git clone https://github.com/facebook/wangle --depth=1 && \
     cd ../.. && \
     rm -rf wangle
 
+# thrift is not used yet
 RUN git clone https://github.com/facebook/fbthrift --depth=1 && \
     cd fbthrift/thrift && \
     ./build/deps_ubuntu_14.04.sh && \

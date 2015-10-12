@@ -4,14 +4,17 @@
 #include "displayer.h"
 #include "job.h"
 
+// a demo file for a toy app
+
+// descriptors for two jobs
 static const JobDesc compute_stuff = {
-    { { "a", "number", "Value A" }, { "b", "number", "Value B" } },
-    "Compute Stuff",
-    "/compute",
-    "Compute a + b",
+    { { "a", "number", "Value A" }, { "b", "number", "Value B" } },  // args
+    "Compute Stuff",  // name
+    "/compute",  // url
+    "Compute a + b",  // longer description
     true /* synchronous */,
     true /* reentrant */,
-    [](const std::vector<std::string>& vs) {
+    [](const std::vector<std::string>& vs) { // the actual function
         return Html() << folly::to<std::string>(folly::to<int>(vs[0]) + folly::to<int>(vs[1]));
     }
 };
@@ -39,12 +42,15 @@ static const JobDesc ackermann = {
 };
 
 int main(int argc, char** argv) {
-    InitHttpInterface();
+    InitHttpInterface();  // Init the http server
 
+    // register the two functions
     RegisterJob(compute_stuff);
     RegisterJob(ackermann);
-    SetStatusVar("Has Computed", "false");
-    ServiceLoopForever();
-    StopHttpInterface();
+
+    SetStatusVar("Has Computed", "false");  // simple status variable, see it on the status page
+    ServiceLoopForever();  // infinite loop ending only on SIGINT / SIGTERM / SIGKILL
+
+    StopHttpInterface();  // clear resources
     return 0;
 }

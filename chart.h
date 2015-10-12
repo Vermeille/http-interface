@@ -3,10 +3,12 @@
 #include <vector>
 #include <string>
 
+// Chart description. Use it when you want to render a chart on a page. It does not hold actual
+// data. Provide the data you want to show with LogData, and describe the chart here.
 class Chart {
-    std::string label_;
-    std::vector<std::string> values_;
-    const std::string& name_;
+    std::string label_;  // the key of the logged data that will be the label / x axis
+    std::vector<std::string> values_;  // they keys of the y
+    const std::string& name_;  // a unique token identifying the chart
 
     public:
     Chart(const std::string& name) : name_(name) {}
