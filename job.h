@@ -10,17 +10,27 @@
 #include "displayer.h"
 #include "html.h"
 
-struct Arg {
-    std::string name;
-    std::string type;
-    std::string desc;
+class Arg {
+    std::string name_;
+    std::string type_;
+    std::string desc_;
+  public:
+
+    Arg(const std::string& name, const std::string& type, const std::string& desc)
+        : name_(name),
+        type_(type),
+        desc_(desc) {
+    }
+
+    const std::string& name() const { return name_; }
+    const std::string& type() const { return type_; }
 
     Html ArgToForm() const {
         return Html() <<
             Div().AddClass("form-group") <<
-                Tag("label").Attr("for", name) << desc << Close() <<
-                Input().Attr("name", name).Attr("type", type).AddClass("form-control")
-                    .Id(name).Attr("placeholder", name) <<
+                Tag("label").Attr("for", name_) << desc_ << Close() <<
+                Input().Attr("name", name_).Attr("type", type_).AddClass("form-control")
+                    .Id(name_).Attr("placeholder", name_) <<
             Close();
     }
 };
@@ -57,10 +67,10 @@ class JobDesc {
         Html html;
 
         for (auto& a : args_) {
-            auto arg_value = vs.find(a.name);
+            auto arg_value = vs.find(a.name());
             if (arg_value == vs.end()) {
                 html << Div().AddClass("alert alert-danger")
-                    << a.name << " was not provided." <<
+                    << a.name() << " was not provided." <<
                 Close();
                 error = true;
             } else {
@@ -93,31 +103,45 @@ class JobDesc {
     }
 };
 
-struct JobStatus {
-    std::chrono::system_clock::time_point start;
-    mutable std::future<Html> job;
-    std::vector<std::string> args;
-    mutable Html result;
-    mutable bool finished;
-    const JobDesc* const desc;
+class JobStatus {
+    std::chrono::system_clock::time_point start_;
+    mutable std::future<Html> job_;
+    std::vector<std::string> args_;
+    mutable Html result_;
+    mutable bool finished_;
+    const JobDesc* const desc_;
+  public:
+
+    std::string start_time() const {
+        auto time = std::chrono::system_clock::to_time_t(start_);
+        return std::ctime(&time);
+    }
+
+    const JobDesc* description() const { return desc_; }
 
     JobStatus(JobStatus&&) = default;
     JobStatus(const JobDesc* desc, const std::vector<std::string>& args)
-        : start(std::chrono::system_clock::now()),
-        job(std::async(std::launch::async, desc->function(), args)),
-        finished(false),
-        desc(desc) {
+        : start_(std::chrono::system_clock::now()),
+        job_(std::async(std::launch::async, desc->function(), args)),
+        args_(args),
+        finished_(false),
+        desc_(desc) {
+    }
+
+    Html result() const {
+        IsFinished();
+        return result_;
     }
 
     bool IsFinished() const {
-        if (finished == false) {
-            bool ended = job.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
-            finished = ended;
-            if (finished && job.valid()) {
-                result = job.get();
+        if (finished_ == false) {
+            bool ended = job_.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+            finished_ = ended;
+            if (finished_ && job_.valid()) {
+                result_ = job_.get();
             }
         }
-        return finished;
+        return finished_;
     }
 };
 
@@ -154,14 +178,13 @@ struct RunningJobs {
                 Close();
 
         for (const auto& rj : statuses) {
-            auto time = std::chrono::system_clock::to_time_t(rj.second.start);
             html <<
                 Tag("tr") <<
-                    Tag("td") << rj.second.desc->name() << Close() <<
-                    Tag("td") << std::ctime(&time) << Close() <<
+                    Tag("td") << rj.second.description()->name() << Close() <<
+                    Tag("td") << rj.second.start_time() << Close() <<
                     Tag("td") << (rj.second.IsFinished() ? "true" : "false") << Close() <<
                     Tag("td") <<
-                        A().Attr("href", "/job?id=" + std::to_string(rj.first)) <<
+                        A().Attr("href", "/job?id=" + rj.first) <<
                             "See" <<
                         Close() <<
                     Close() <<
@@ -225,7 +248,7 @@ struct RunningJobs {
 
             html << Ul();
             for (size_t i = 0; i < args.size(); ++i) {
-                html << Li() << desc->args()[i].name << " = " << args[i] << Close();
+                html << Li() << desc->args()[i].name() << " = " << args[i] << Close();
             }
             html << Close();
             return html;

@@ -217,16 +217,15 @@ Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
     if (!rj) {
         return Html() << "job not found";
     }
-    auto time = std::chrono::system_clock::to_time_t(rj->start);
 
     Html html;
     html <<
         H1() << "Job Details" << Close() <<
         Div() <<
-            P() << "Started on: " << std::ctime(&time) << Close();
+            P() << "Started on: " << rj->start_time() << Close();
 
     if (rj->IsFinished()) {
-        html << rj->result;
+        html << rj->result();
     }
 
     html << Close();
