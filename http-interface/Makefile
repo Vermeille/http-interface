@@ -1,5 +1,5 @@
 CXX=g++
-LDFLAGS=-lmicrohttpd -lglog -lfolly
+LDFLAGS=-lmicrohttpd -lglog
 CXXFLAGS=-std=c++11 -g3 -Wall -Wextra
 
 all: displayer

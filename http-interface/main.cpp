@@ -1,5 +1,4 @@
 #include <glog/logging.h>
-#include <folly/Conv.h>
 
 #include "displayer.h"
 #include "job.h"
@@ -15,7 +14,7 @@ static const JobDesc compute_stuff = {
     true /* synchronous */,
     true /* reentrant */,
     [](const std::vector<std::string>& vs) { // the actual function
-        return Html() << folly::to<std::string>(folly::to<int>(vs[0]) + folly::to<int>(vs[1]));
+        return Html() << std::to_string(std::atoi(vs[0].c_str()) + std::atoi(vs[1].c_str()));
     }
 };
 
