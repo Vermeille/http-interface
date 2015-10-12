@@ -25,21 +25,38 @@ struct Arg {
     }
 };
 
-struct JobDesc {
-    std::vector<Arg> args;
-    std::string name;
-    std::string url;
-    std::string desc;
-    bool synchronous;
-    bool reentrant;
-    std::function<Html(const std::vector<std::string>&)> exec;
+class JobDesc {
+    std::vector<Arg> args_;
+    std::string name_;
+    std::string url_;
+    std::string desc_;
+    bool synchronous_;
+    bool reentrant_;
+    std::function<Html(const std::vector<std::string>&)> exec_;
+  public:
+    typedef std::function<Html(const std::vector<std::string>&)> function_type;
+
+    const std::vector<Arg>& args() const { return args_; }
+    const std::string& name() const { return name_; }
+    const std::string& url() const { return url_; }
+    const std::string& description() const { return desc_; }
+    bool IsSynchronous() const { return synchronous_; }
+    function_type function() const { return exec_; }
+
+    JobDesc() = default;
+    JobDesc(const std::vector<Arg>& args, const std::string& name, const std::string& url,
+            const std::string& desc, bool synchronous, bool reentrant,
+            const std::function<Html(const std::vector<std::string>&)> fun)
+        : args_(args), name_(name), url_(url), desc_(desc), synchronous_(synchronous),
+        reentrant_(reentrant), exec_(fun) {
+    }
 
     std::tuple<bool, Html, std::vector<std::string>> ValidateParams(const POSTValues& vs) {
         std::vector<std::string> args_values;
         bool error = false;
         Html html;
 
-        for (auto& a : args) {
+        for (auto& a : args_) {
             auto arg_value = vs.find(a.name);
             if (arg_value == vs.end()) {
                 html << Div().AddClass("alert alert-danger")
@@ -56,11 +73,11 @@ struct JobDesc {
 
     Html MakeForm() const {
         auto html = Html() <<
-            H1() << name << Close() <<
-            P() << desc << Close() <<
-            Form("POST", url);
+            H1() << name_ << Close() <<
+            P() << desc_ << Close() <<
+            Form("POST", url_);
 
-        for (auto& a : args) {
+        for (auto& a : args_) {
             html << a.ArgToForm();
         }
 
@@ -71,7 +88,7 @@ struct JobDesc {
 
     Html DisplayResult(const Html& res) const {
         return Html() <<
-            H1() << name << Close() <<
+            H1() << name_ << Close() <<
             res;
     }
 };
@@ -87,7 +104,7 @@ struct JobStatus {
     JobStatus(JobStatus&&) = default;
     JobStatus(const JobDesc* desc, const std::vector<std::string>& args)
         : start(std::chrono::system_clock::now()),
-        job(std::async(std::launch::async, desc->exec, args)),
+        job(std::async(std::launch::async, desc->function(), args)),
         finished(false),
         desc(desc) {
     }
@@ -122,7 +139,7 @@ struct RunningJobs {
     }
 
     void AddDescriptor(const JobDesc& jd) {
-        descriptors_[jd.url] = jd;
+        descriptors_[jd.url()] = jd;
     }
 
     Html RenderTableOfRunningJobs() const {
@@ -140,7 +157,7 @@ struct RunningJobs {
             auto time = std::chrono::system_clock::to_time_t(rj.second.start);
             html <<
                 Tag("tr") <<
-                    Tag("td") << rj.second.desc->name << Close() <<
+                    Tag("td") << rj.second.desc->name() << Close() <<
                     Tag("td") << std::ctime(&time) << Close() <<
                     Tag("td") << (rj.second.IsFinished() ? "true" : "false") << Close() <<
                     Tag("td") <<
@@ -160,7 +177,11 @@ struct RunningJobs {
 
         html << Ul();
         for (auto& j : descriptors_)
-            html << Li() << A().Attr("href", j.second.url) << j.second.name << Close() << Close();
+            html <<
+                Li()
+                    << A().Attr("href", j.second.url()) << j.second.name() << Close() <<
+                Close();
+
         html << Close();
         return html;
     }
@@ -192,19 +213,19 @@ struct RunningJobs {
             return html;
         }
 
-        if (desc->synchronous) {
-            html << desc->DisplayResult(desc->exec(args));
+        if (desc->IsSynchronous()) {
+            html << desc->DisplayResult(desc->function()(args));
             return html;
         } else {
             statuses.emplace(std::make_pair(statuses.size(), JobStatus(desc, args)));
 
             html <<
                 H2() << "Your job have started" << Close() <<
-                H3() << desc->name << Close();
+                H3() << desc->name() << Close();
 
             html << Ul();
             for (size_t i = 0; i < args.size(); ++i) {
-                html << Li() << desc->args[i].name << " = " << args[i] << Close();
+                html << Li() << desc->args()[i].name << " = " << args[i] << Close();
             }
             html << Close();
             return html;
