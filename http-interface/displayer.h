@@ -9,7 +9,6 @@
 typedef std::map<std::string, std::string> POSTValues ;
 
 #include "html.h"
-#include "job.h"
 
 typedef std::function<Html(const std::string&, const POSTValues&)> UrlHandler;
 typedef std::map<std::string, boost::circular_buffer<size_t>> DataLog;
@@ -45,7 +44,6 @@ void StopHttpInterface();  // may be ueless depending on the use case
 void ServiceLoopForever();  // a convenience function for a proper event loop
 
 void RegisterUrl(const std::string& str, const UrlHandler& f);  // call f is url is accessed
-void RegisterJob(const JobDesc& jd);  // maps the job to its url etc
 
 // set an overridable value that you can see on the status page. Useful for non numeric info
 void SetStatusVar(const std::string& name, const std::string& value);

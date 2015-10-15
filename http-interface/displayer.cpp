@@ -18,6 +18,7 @@
 
 #include "displayer.h"
 #include "chart.h"
+#include "job.h"
 
 #define PORT 8888
 #define NOT_FOUND_ERROR "<html><head><title>Not found</title></head><body>Go away.</body></html>"
