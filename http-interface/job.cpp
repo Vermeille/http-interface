@@ -21,9 +21,9 @@ Html Arg::ArgToForm() const {
 
 JobDesc::JobDesc(const std::vector<Arg>& args, const std::string& name, const std::string& url,
         const std::string& desc, bool synchronous, bool reentrant,
-        const function_type& fun)
+        const function_type& fun, const std::vector<Chart>& charts)
     : args_(args), name_(name), url_(url), desc_(desc), synchronous_(synchronous),
-    reentrant_(reentrant), exec_(fun) {
+    reentrant_(reentrant), exec_(fun), charts_(charts) {
 }
 
 
@@ -72,7 +72,7 @@ Html JobDesc::DisplayResult(const Html& res) const {
 
 JobStatus::JobStatus(const JobDesc* desc, const std::vector<std::string>& args, size_t id)
     : start_(std::chrono::system_clock::now()),
-    job_(std::async(std::launch::async, desc->function(), args)),
+    job_(std::async(std::launch::async, desc->function(), args, id)),
     args_(args),
     finished_(false),
     desc_(desc),
@@ -126,7 +126,7 @@ Html RunningJobs::RenderTableOfRunningJobs() const {
                 Tag("td") << rj.second.start_time() << Close() <<
                 Tag("td") << (rj.second.IsFinished() ? "true" : "false") << Close() <<
                 Tag("td") <<
-                    A().Attr("href", "/job?id=" + rj.first) <<
+                    A().Attr("href", "/job?id=" + std::to_string(rj.second.id())) <<
                         "See" <<
                     Close() <<
                 Close() <<
@@ -181,10 +181,12 @@ Html RunningJobs::Exec(const std::string& url, const POSTValues& vs) {
     // TODO: reentrance
 
     if (desc->IsSynchronous()) {
-        html << desc->DisplayResult(desc->function()(args));
+        html << desc->DisplayResult(desc->function()(args, next_id_));
+        ++next_id_;
         return html;
     } else {
-        statuses.emplace(std::make_pair(statuses.size(), JobStatus(desc, args, statuses.size())));
+        statuses.emplace(std::make_pair(next_id_, JobStatus(desc, args, next_id_)));
+        ++next_id_;
 
         html <<
             H2() << "Your job have started" << Close() <<

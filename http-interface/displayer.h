@@ -13,7 +13,7 @@ typedef std::map<std::string, std::string> POSTValues ;
 typedef std::function<Html(const std::string&, const POSTValues&)> UrlHandler;
 typedef std::map<std::string, boost::circular_buffer<size_t>> DataLog;
 
-const DataLog& GetDataLog();
+const DataLog& GetDataLog(size_t id = 0);
 
 #define MAP_INTERSPERSE(C, S, I, B) \
     MapIntersperse(C, S, [](const typename decltype (C)::value_type& I) { return B; })
@@ -46,7 +46,7 @@ void ServiceLoopForever();  // a convenience function for a proper event loop
 void RegisterUrl(const std::string& str, const UrlHandler& f);  // call f is url is accessed
 
 // set an overridable value that you can see on the status page. Useful for non numeric info
-void SetStatusVar(const std::string& name, const std::string& value);
+void SetStatusVar(const std::string& name, const std::string& value, size_t id = 0);
 // values are logged and accumulated. Log a bunch of data, and draw a chart out of it
-void LogData(const std::string& name, size_t value);
+void LogData(const std::string& name, size_t value, size_t id = 0);
 

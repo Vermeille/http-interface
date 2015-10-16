@@ -20,21 +20,24 @@
 #include "chart.h"
 #include "job.h"
 
-#define PORT 8888
+DEFINE_int32(port, 8888, "the port to serve the http on");
+DEFINE_int32(status_memory, 20, "the number of samples to show in charts");
+DEFINE_int32(status_refresh, 30, "the refresh frequency (in secs) for monitoring info");
+
 #define NOT_FOUND_ERROR "<html><head><title>Not found</title></head><body>Go away.</body></html>"
 
 /* WARNING / FIXME: race conditions everywhere, mutex badly used */
 
 static struct MHD_Daemon *g_daemon;
 static std::thread* g_monitoring_thread;
-static DataLog g_data;
-static std::map<std::string, std::string> g_status;
+static std::map<size_t, DataLog> g_data;
+static std::map<size_t, std::map<std::string, std::string>> g_status;
 static std::map<std::string, UrlHandler> g_callbacks;
 static std::mutex g_data_access;
 static RunningJobs g_jobs;
 
-const DataLog& GetDataLog() {
-    return g_data;
+const DataLog& GetDataLog(size_t id) {
+    return g_data[id];
 }
 
 struct ConnInfo {
@@ -175,13 +178,13 @@ Html Status(const std::string& /* method */, const std::map<std::string, std::st
     html <<
         H1() << "Monitoring status" << Close() <<
         Div().AddClass("row") <<
-            Chart("monitoring_ram").Label("Time").Value("Available RAM").Get() <<
-            Chart("monitoring_cpu").Label("Time").Value("CPU").Get() <<
+            Chart("monitoring_ram").Label("Time").Value("Available RAM").Get(0) <<
+            Chart("monitoring_cpu").Label("Time").Value("CPU").Get(0) <<
         Close() <<
         H1() << "Status variables" << Close() <<
         Ul();
 
-    for (auto& v : g_status)
+    for (auto& v : g_status[0])
         html << Li() << v.first + ": " + v.second << Close();
 
     html
@@ -225,7 +228,20 @@ Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
     html <<
         H1() << "Job Details" << Close() <<
         Div() <<
-            P() << "Started on: " << rj->start_time() << Close();
+            P() << "Started on: " << rj->start_time() << Close() <<
+            H2() << "Status Variables" << Close() <<
+            Ul();
+
+    for (auto& v : g_status[rj->id()]) {
+        html << Li() << v.first + ": " + v.second << Close();
+    }
+
+    html << Close()
+        << H2() << "Charts" << Close();
+
+    for (auto& c : rj->description()->charts()) {
+        html << c.Get(rj->id());
+    }
 
     if (rj->IsFinished()) {
         html << rj->result();
@@ -281,14 +297,14 @@ Stats GetMonitoringStats() {
 bool InitHttpInterface() {
     google::InstallFailureSignalHandler();
     g_data_access.lock();
-    g_data["Available RAM"].rset_capacity(20);
-    g_data["CPU"].rset_capacity(20);
-    g_data["Time"].rset_capacity(20);
+    g_data[0]["Available RAM"].rset_capacity(FLAGS_status_memory);
+    g_data[0]["CPU"].rset_capacity(FLAGS_status_memory);
+    g_data[0]["Time"].rset_capacity(FLAGS_status_memory);
 
-    for (int i = 0; i < 20; ++i) {
-        g_data["Available RAM"].push_front(0);
-        g_data["CPU"].push_front(0);
-        g_data["Time"].push_back(i * 20);
+    for (int i = 0; i < FLAGS_status_refresh; ++i) {
+        g_data[0]["Available RAM"].push_front(0);
+        g_data[0]["CPU"].push_front(0);
+        g_data[0]["Time"].push_back(i * FLAGS_status_refresh);
     }
     g_data_access.unlock();
 
@@ -300,21 +316,21 @@ bool InitHttpInterface() {
             Stats s = GetMonitoringStats();
 
             g_data_access.lock();
-            g_data["Available RAM"].push_front(s.vsize);
-            g_data["CPU"].push_front((100 / 20) * ((double)s.utime +  s.stime - last_time)
-                    / sysconf(_SC_CLK_TCK));
+            g_data[0]["Available RAM"].push_front(s.vsize);
+            g_data[0]["CPU"].push_front((100 / FLAGS_status_refresh)
+                    * ((double)s.utime +  s.stime - last_time) / sysconf(_SC_CLK_TCK));
             g_data_access.unlock();
 
             last_time = s.utime + s.stime;
 
-            std::this_thread::sleep_for(std::chrono::seconds(20)
+            std::this_thread::sleep_for(std::chrono::seconds(FLAGS_status_refresh)
                 - (std::chrono::system_clock::now() - begin));
         }
     });
 
     signal(SIGINT, handle_sigint);
 
-    g_daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, PORT, NULL, NULL,
+    g_daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, FLAGS_port, NULL, NULL,
             &answer_to_connection, NULL, MHD_OPTION_END,
             MHD_OPTION_NOTIFY_COMPLETED, request_completed,
             NULL, MHD_OPTION_END);
@@ -353,14 +369,16 @@ void ServiceLoopForever() {
     }
 }
 
-void SetStatusVar(const std::string& name, const std::string& value) {
+void SetStatusVar(const std::string& name, const std::string& value, size_t id) {
     g_data_access.lock();
-    g_status[name] = value;
+    g_status[id][name] = value;
     g_data_access.unlock();
 }
 
-void LogData(const std::string& name, size_t value) {
+void LogData(const std::string& name, size_t value, size_t id) {
     g_data_access.lock();
-    g_data[name].push_front(value);
+    g_data[id][name].rset_capacity(20);
+    g_data[id][name].push_front(value);
     g_data_access.unlock();
 }
+

@@ -2,11 +2,15 @@
 #include "html.h"
 #include "displayer.h"
 
-std::string Chart::Get() {
-    auto dl = GetDataLog();
+std::string Chart::Get(size_t job_id) const {
+    auto dl = GetDataLog(job_id);
     auto labels = dl.find(label_);
     std::vector<decltype (dl.find(""))> values;
     bool error = false;
+
+    for (auto& v : dl) {
+        std::cout << "key: " << v.first << std::endl;
+    }
 
     for (auto& v : values_)
         values.push_back(dl.find(v));
@@ -15,7 +19,7 @@ std::string Chart::Get() {
     if (labels == dl.end() || labels->second.empty()) {
         html <<
             Div().AddClass("alert alert-warning") <<
-                "Can't find labels for " << name_ <<
+                "Can't find labels " << label_ << " for " << name_ <<
             Close();
         error = true;
     }

@@ -9,6 +9,7 @@
 
 #include "displayer.h"
 #include "html.h"
+#include "chart.h"
 
 // Represent the arguments a job can take in order to define them.
 // TODO: type validator
@@ -34,10 +35,11 @@ class JobDesc {
     std::string desc_;  // text describing what the job does
     bool synchronous_;  // if synchronous, result will be given immediately. If not, queue a job.
     bool reentrant_;  // if not reentrant, only one running instance of the job is allowed
-    std::function<Html(const std::vector<std::string>&)> exec_;  // the actual function called
+    std::function<Html(const std::vector<std::string>&, size_t job_id)> exec_;  // the actual function called
+    std::vector<Chart> charts_;
   public:
 
-    typedef std::function<Html(const std::vector<std::string>&)> function_type;
+    typedef std::function<Html(const std::vector<std::string>&, size_t job_id)> function_type;
 
     const std::vector<Arg>& args() const { return args_; }
     const std::string& name() const { return name_; }
@@ -46,10 +48,12 @@ class JobDesc {
     bool IsSynchronous() const { return synchronous_; }
     function_type function() const { return exec_; }
 
+    const std::vector<Chart>& charts() const { return charts_; }
+
     JobDesc() = default;
     JobDesc(const std::vector<Arg>& args, const std::string& name, const std::string& url,
             const std::string& desc, bool synchronous, bool reentrant,
-            const function_type& fun);
+            const function_type& fun, const std::vector<Chart>& charts = {});
 
     // return true and a vector of parameters if all the arguments are present in vs
     // return false and an error page if they're not
@@ -70,6 +74,7 @@ class JobStatus {
     const size_t id_;
   public:
 
+    size_t id() const { return id_; }
     std::string start_time() const {
         auto time = std::chrono::system_clock::to_time_t(start_);
         return std::ctime(&time);
@@ -89,6 +94,7 @@ class JobStatus {
 class RunningJobs {
     std::map<size_t, JobStatus> statuses;
     std::map<std::string, JobDesc> descriptors_;
+    size_t next_id_ = 1;
   public:
 
     RunningJobs() = default;
