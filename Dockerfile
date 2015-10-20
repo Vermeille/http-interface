@@ -12,6 +12,7 @@ RUN apt-get update &&  apt-get install -y \
          automake \
          autoconf \
          autoconf-archive \
+         cmake \
          gcc \
          g++ \
          git \
@@ -35,6 +36,6 @@ EXPOSE 8888
 
 ADD . /root
 
-RUN make
+RUN mkdir build && cd build && cmake .. && make
 
-ENTRYPOINT ["valgrind", "./http-interface/displayer"]
+ENTRYPOINT ["valgrind", "./build/http-interface/test"]
