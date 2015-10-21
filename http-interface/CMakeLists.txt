@@ -14,3 +14,7 @@ target_link_libraries(test LINK_PUBLIC httpi
     microhttpd glog gflags)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+
+install(TARGETS httpi
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib)

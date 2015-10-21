@@ -36,6 +36,6 @@ EXPOSE 8888
 
 ADD . /root
 
-RUN mkdir build && cd build && cmake .. && make
+RUN mkdir build && cd build && cmake .. && make && make install
 
 ENTRYPOINT ["valgrind", "./build/http-interface/test"]
