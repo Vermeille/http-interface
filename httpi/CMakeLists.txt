@@ -12,9 +12,13 @@ add_executable(test
 
 target_link_libraries(test LINK_PUBLIC httpi
     microhttpd glog gflags)
+target_link_libraries(httpi LINK_PUBLIC microhttpd glog gflags)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 install(TARGETS httpi
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib)
+
+file(GLOB headers *.h)
+install(FILES ${headers} DESTINATION include/httpi)
