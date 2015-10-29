@@ -27,6 +27,8 @@ class Arg {
     Html ArgToForm() const;
 };
 
+class JobStatus;
+
 // Describe a job, generate the HTML for jobs.
 class JobDesc {
     std::vector<Arg> args_;  // the job's prototype
@@ -35,11 +37,11 @@ class JobDesc {
     std::string desc_;  // text describing what the job does
     bool synchronous_;  // if synchronous, result will be given immediately. If not, queue a job.
     bool reentrant_;  // if not reentrant, only one running instance of the job is allowed
-    std::function<Html(const std::vector<std::string>&, size_t job_id)> exec_;  // the actual function called
+    std::function<void(const std::vector<std::string>&, JobStatus&)> exec_;  // the actual function called
     std::vector<Chart> charts_;
   public:
 
-    typedef std::function<Html(const std::vector<std::string>&, size_t job_id)> function_type;
+    typedef std::function<void(const std::vector<std::string>&, JobStatus&)> function_type;
 
     const std::vector<Arg>& args() const { return args_; }
     const std::string& name() const { return name_; }
@@ -60,19 +62,23 @@ class JobDesc {
     std::tuple<bool, Html, std::vector<std::string>> ValidateParams(const POSTValues& vs);
 
     Html MakeForm() const;
-    Html DisplayResult(const Html& res) const;
+    Html DisplayResult(const std::string& res) const;
 };
 
 // Describe a running instance of a job
 class JobStatus {
     std::chrono::system_clock::time_point start_;
-    mutable std::future<Html> job_;
+    mutable std::future<void> job_;
     std::vector<std::string> args_;
-    mutable Html result_;
+    std::shared_ptr<std::string> page_;
     mutable bool finished_;
     const JobDesc* const desc_;
     const size_t id_;
   public:
+
+    void SetPage(const Html& page) {
+        page_ = std::make_shared<std::string>(page.Get());
+    }
 
     size_t id() const { return id_; }
     std::string start_time() const {
@@ -85,7 +91,7 @@ class JobStatus {
     JobStatus(JobStatus&&) = default;
     JobStatus(const JobDesc* desc, const std::vector<std::string>& args, size_t id);
 
-    Html result() const;
+    std::shared_ptr<std::string> result() const;
 
     bool IsFinished() const;
 };

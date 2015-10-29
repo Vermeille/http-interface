@@ -13,8 +13,8 @@ static const JobDesc compute_stuff = {
     "Compute a + b",  // longer description
     true /* synchronous */,
     true /* reentrant */,
-    [](const std::vector<std::string>& vs, size_t) { // the actual function
-        return Html() << std::to_string(std::atoi(vs[0].c_str()) + std::atoi(vs[1].c_str()));
+    [](const std::vector<std::string>& vs, JobStatus& job) { // the actual function
+        job.SetPage(Html() << std::to_string(std::atoi(vs[0].c_str()) + std::atoi(vs[1].c_str())));
     }
 };
 
@@ -29,7 +29,7 @@ static const JobDesc ackermann = {
     "Permute a string",
     false /* synchronous */,
     true /* reentrant */,
-    [](const std::vector<std::string>& vs, size_t id) {
+    [](const std::vector<std::string>& vs, JobStatus& job) {
         std::string str = vs[0];
         std::sort(str.begin(), str.end());
 
@@ -37,24 +37,23 @@ static const JobDesc ackermann = {
         size_t total = factorial(str.size());
 
         Html html;
-        html << Ul();
         do {
             html << Li() << str << Close();
             if (i % 10 == 0) {
-                LogData("iter", i, id);
-                LogData("max", total, id);
-                std::cout << "LOG FOR ID " << id << std::endl;
+                LogData("iter", i, job.id());
+                LogData("max", total, job.id());
+                job.SetPage(
+                        Html() <<
+                        Chart("progression").Label("iter").Value("iter").Value("max").Get(job.id()) <<
+                        Ul() << html << Close());
             }
             ++i;
         } while(std::next_permutation(str.begin(), str.end()));
-        html << Close();
-
-        return html;
     },
-    { Chart("progression").Label("iter").Value("iter").Value("max") }
 };
 
 int main(int argc, char** argv) {
+    google::InitGoogleLogging(argv[0]);
     InitHttpInterface();  // Init the http server
 
     // register the two functions

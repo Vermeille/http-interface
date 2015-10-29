@@ -38,4 +38,4 @@ ADD . /root
 
 RUN mkdir build && cd build && cmake .. && make && make install
 
-ENTRYPOINT ["valgrind", "./build/http-interface/test"]
+ENTRYPOINT ["valgrind", "./build/httpi/test"]

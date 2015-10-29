@@ -100,7 +100,8 @@ class Html {
         }
 
         const std::string& Get() const {
-            LOG_IF(FATAL, !tags_.empty()) << "Tag " << tags_.top() << " not closed.";
+            LOG_IF(FATAL, !tags_.empty()) << "Tag " << tags_.top() << " not closed for `"
+                << content_ << "`";
             return content_;
         }
 };

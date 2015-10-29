@@ -62,7 +62,7 @@ Html JobDesc::MakeForm() const {
     return html;
 }
 
-Html JobDesc::DisplayResult(const Html& res) const {
+Html JobDesc::DisplayResult(const std::string& res) const {
     return Html() <<
         H1() << name_ << Close() <<
         res;
@@ -72,25 +72,23 @@ Html JobDesc::DisplayResult(const Html& res) const {
 
 JobStatus::JobStatus(const JobDesc* desc, const std::vector<std::string>& args, size_t id)
     : start_(std::chrono::system_clock::now()),
-    job_(std::async(std::launch::async, desc->function(), args, id)),
+    job_(std::async(std::launch::async, desc->function(), args, std::ref(*this))),
     args_(args),
+    page_(std::make_shared<std::string>("job just started")),
     finished_(false),
     desc_(desc),
     id_(id) {
 }
 
-Html JobStatus::result() const {
+std::shared_ptr<std::string> JobStatus::result() const {
     IsFinished();
-    return result_;
+    return page_;
 }
 
 bool JobStatus::IsFinished() const {
     if (finished_ == false) {
         bool ended = job_.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
         finished_ = ended;
-        if (finished_ && job_.valid()) {
-            result_ = job_.get();
-        }
     }
     return finished_;
 }
@@ -181,11 +179,14 @@ Html RunningJobs::Exec(const std::string& url, const POSTValues& vs) {
     // TODO: reentrance
 
     if (desc->IsSynchronous()) {
-        html << desc->DisplayResult(desc->function()(args, next_id_));
+        JobStatus js(desc, args, next_id_);
+        html << desc->DisplayResult(*js.result());
         ++next_id_;
         return html;
     } else {
-        statuses.emplace(std::make_pair(next_id_, JobStatus(desc, args, next_id_)));
+        statuses.emplace(std::piecewise_construct,
+                std::forward_as_tuple(next_id_),
+                std::forward_as_tuple(desc, args, next_id_));
         ++next_id_;
 
         html <<

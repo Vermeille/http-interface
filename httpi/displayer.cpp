@@ -235,17 +235,9 @@ Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
     for (auto& v : g_status[rj->id()]) {
         html << Li() << v.first + ": " + v.second << Close();
     }
+    html << Close();
 
-    html << Close()
-        << H2() << "Charts" << Close();
-
-    for (auto& c : rj->description()->charts()) {
-        html << c.Get(rj->id());
-    }
-
-    if (rj->IsFinished()) {
-        html << rj->result();
-    }
+    html << *rj->result();
 
     html << Close();
     return html;
