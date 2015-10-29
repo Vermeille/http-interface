@@ -21,9 +21,9 @@ Html Arg::ArgToForm() const {
 
 JobDesc::JobDesc(const std::vector<Arg>& args, const std::string& name, const std::string& url,
         const std::string& desc, bool synchronous, bool reentrant,
-        const function_type& fun, const std::vector<Chart>& charts)
+        const function_type& fun)
     : args_(args), name_(name), url_(url), desc_(desc), synchronous_(synchronous),
-    reentrant_(reentrant), exec_(fun), charts_(charts) {
+    reentrant_(reentrant), exec_(fun) {
 }
 
 

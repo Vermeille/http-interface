@@ -38,7 +38,6 @@ class JobDesc {
     bool synchronous_;  // if synchronous, result will be given immediately. If not, queue a job.
     bool reentrant_;  // if not reentrant, only one running instance of the job is allowed
     std::function<void(const std::vector<std::string>&, JobStatus&)> exec_;  // the actual function called
-    std::vector<Chart> charts_;
   public:
 
     typedef std::function<void(const std::vector<std::string>&, JobStatus&)> function_type;
@@ -50,12 +49,10 @@ class JobDesc {
     bool IsSynchronous() const { return synchronous_; }
     function_type function() const { return exec_; }
 
-    const std::vector<Chart>& charts() const { return charts_; }
-
     JobDesc() = default;
     JobDesc(const std::vector<Arg>& args, const std::string& name, const std::string& url,
             const std::string& desc, bool synchronous, bool reentrant,
-            const function_type& fun, const std::vector<Chart>& charts = {});
+            const function_type& fun);
 
     // return true and a vector of parameters if all the arguments are present in vs
     // return false and an error page if they're not
