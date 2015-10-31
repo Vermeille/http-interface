@@ -2,21 +2,16 @@
 #include "html.h"
 #include "displayer.h"
 
-std::string Chart::Get(size_t job_id) const {
-    auto dl = GetDataLog(job_id);
-    auto labels = dl.find(label_);
-    std::vector<decltype (dl.find(""))> values;
+std::string Chart::Get() const {
+    std::vector<decltype (logged_values_.find(""))> values;
+    auto labels = logged_values_.find(label_);
     bool error = false;
 
-    for (auto& v : dl) {
-        std::cout << "key: " << v.first << std::endl;
-    }
-
     for (auto& v : values_)
-        values.push_back(dl.find(v));
+        values.push_back(logged_values_.find(v));
 
     Html html;
-    if (labels == dl.end() || labels->second.empty()) {
+    if (labels == logged_values_.end() || labels->second.empty()) {
         html <<
             Div().AddClass("alert alert-warning") <<
                 "Can't find labels " << label_ << " for " << name_ <<
@@ -25,7 +20,7 @@ std::string Chart::Get(size_t job_id) const {
     }
 
     for (auto& v : values) {
-        if (v == dl.end() || v->second.empty()) {
+        if (v == logged_values_.end() || v->second.empty()) {
             html <<
                 Div().AddClass("alert alert-warning") <<
                     "Can't find values for " << name_ <<
@@ -45,7 +40,8 @@ std::string Chart::Get(size_t job_id) const {
         Close()).Get() +
         "<script>"
             "new Chartist.Line('#" + name_ + "', {"
-                "labels: [" + ToCSV(labels->second) + "].reverse(),"
+                "labels: [" + MapIntersperse(labels->second, ", ", [](const std::string& str) {
+                        return "\"" + str + "\""; }) + "].reverse(),"
                 "series: [" +
                 MAP_INTERSPERSE(values, ", ", v, "[" + ToCSV(v->second) + "].reverse()") +
                 "]"

@@ -74,7 +74,7 @@ class JobStatus {
   public:
 
     void SetPage(const Html& page) {
-        page_ = std::make_shared<std::string>(page.Get());
+        page_.reset(new std::string(page.Get()));
     }
 
     size_t id() const { return id_; }
@@ -112,6 +112,7 @@ class RunningJobs {
     Html RenderListOfDescriptors() const;
     JobStatus* FindJobWithId(size_t id);
     Html Exec(const std::string& url, const POSTValues& vs);
+    size_t StartJob(const JobDesc* desc, const std::vector<std::string>& args);
 };
 
 void RegisterJob(const JobDesc& jd);  // maps the job to its url etc

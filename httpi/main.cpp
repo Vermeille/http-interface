@@ -30,6 +30,9 @@ static const JobDesc ackermann = {
     false /* synchronous */,
     true /* reentrant */,
     [](const std::vector<std::string>& vs, JobStatus& job) {
+        Chart progression("progression");
+        progression.Label("iter").Value("iter").Value("max");
+
         std::string str = vs[0];
         std::sort(str.begin(), str.end());
 
@@ -40,11 +43,11 @@ static const JobDesc ackermann = {
         do {
             html << Li() << str << Close();
             if (i % 10 == 0) {
-                LogData("iter", i, job.id());
-                LogData("max", total, job.id());
+                progression.Log("iter", i)
+                    .Log("max", total)
+                    .MostRecent(30);
                 job.SetPage(
-                        Html() <<
-                        Chart("progression").Label("iter").Value("iter").Value("max").Get(job.id()) <<
+                        Html() << progression.Get() <<
                         Ul() << html << Close());
             }
             ++i;

@@ -201,3 +201,12 @@ Html RunningJobs::Exec(const std::string& url, const POSTValues& vs) {
         return html;
     }
 }
+
+size_t RunningJobs::StartJob(const JobDesc* desc, const std::vector<std::string>& args) {
+    size_t id = next_id_;
+    statuses.emplace(std::piecewise_construct,
+            std::forward_as_tuple(next_id_),
+            std::forward_as_tuple(desc, args, next_id_));
+    ++next_id_;
+    return id;
+}

@@ -5,7 +5,8 @@ add_library(httpi
     displayer.h
     html.h
     job.cpp
-    job.h)
+    job.h
+    monitoring.cpp)
 
 add_executable(test
     main.cpp)

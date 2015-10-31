@@ -13,7 +13,6 @@
 #include <iostream>
 #include <signal.h>
 #include <ctime>
-#include <fstream>
 #include <ctime>
 
 #include "displayer.h"
@@ -21,24 +20,17 @@
 #include "job.h"
 
 DEFINE_int32(port, 8888, "the port to serve the http on");
-DEFINE_int32(status_memory, 20, "the number of samples to show in charts");
-DEFINE_int32(status_refresh, 30, "the refresh frequency (in secs) for monitoring info");
-
 #define NOT_FOUND_ERROR "<html><head><title>Not found</title></head><body>Go away.</body></html>"
 
 /* WARNING / FIXME: race conditions everywhere, mutex badly used */
 
 static struct MHD_Daemon *g_daemon;
 static std::thread* g_monitoring_thread;
-static std::map<size_t, DataLog> g_data;
 static std::map<size_t, std::map<std::string, std::string>> g_status;
 static std::map<std::string, UrlHandler> g_callbacks;
 static std::mutex g_data_access;
 static RunningJobs g_jobs;
-
-const DataLog& GetDataLog(size_t id) {
-    return g_data[id];
-}
+static int g_monitoring_id;
 
 struct ConnInfo {
     MHD_PostProcessor* post;
@@ -174,22 +166,8 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
 }
 
 Html Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
-    Html html;
-    html <<
-        H1() << "Monitoring status" << Close() <<
-        Div().AddClass("row") <<
-            Chart("monitoring_ram").Label("Time").Value("Available RAM").Get(0) <<
-            Chart("monitoring_cpu").Label("Time").Value("CPU").Get(0) <<
-        Close() <<
-        H1() << "Status variables" << Close() <<
-        Ul();
-
-    for (auto& v : g_status[0])
-        html << Li() << v.first + ": " + v.second << Close();
-
-    html
-        << Close();
-    return html;
+    const JobStatus* rj = g_jobs.FindJobWithId(g_monitoring_id);
+    return Html() << *rj->result();
 }
 
 Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
@@ -245,97 +223,12 @@ Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
 
 static bool g_continue = true;
 
+bool ServiceRuns() { return g_continue; }
+
 void handle_sigint(int sig) {
     if (sig == SIGINT) {
         g_continue = false;
     }
-}
-
-struct Stats {
-    size_t utime = 0;
-    size_t stime = 0;
-    size_t vsize = 0;
-};
-
-Stats GetMonitoringStats() {
-    static const int kUserTimeIndex = 14;
-    static const int kKernelTimeIndex = 15;
-    static const int kVirtualSizeIndex = 23;
-
-    std::ifstream stat("/proc/self/stat");
-    Stats s;
-
-    int i = 1;
-    while (stat) {
-        if (i == kUserTimeIndex)
-            stat >> s.utime;
-        else if (i == kKernelTimeIndex)
-            stat >> s.stime;
-        else if (i == kVirtualSizeIndex)
-            stat >> s.vsize;
-        else if (i == 2 || i == 3) {
-            std::string ignore;
-            stat >> ignore;
-        } else {
-            size_t ignore;
-            stat >> ignore;
-        }
-
-        ++i;
-    }
-    return s;
-}
-
-bool InitHttpInterface() {
-    google::InstallFailureSignalHandler();
-    g_data_access.lock();
-    g_data[0]["Available RAM"].rset_capacity(FLAGS_status_memory);
-    g_data[0]["CPU"].rset_capacity(FLAGS_status_memory);
-    g_data[0]["Time"].rset_capacity(FLAGS_status_memory);
-
-    for (int i = 0; i < FLAGS_status_refresh; ++i) {
-        g_data[0]["Available RAM"].push_front(0);
-        g_data[0]["CPU"].push_front(0);
-        g_data[0]["Time"].push_back(i * FLAGS_status_refresh);
-    }
-    g_data_access.unlock();
-
-    g_monitoring_thread = new std::thread ([](){
-        size_t last_time = 0;
-        while (true) {
-            auto begin = std::chrono::system_clock::now();
-
-            Stats s = GetMonitoringStats();
-
-            g_data_access.lock();
-            g_data[0]["Available RAM"].push_front(s.vsize);
-            g_data[0]["CPU"].push_front((100 / FLAGS_status_refresh)
-                    * ((double)s.utime +  s.stime - last_time) / sysconf(_SC_CLK_TCK));
-            g_data_access.unlock();
-
-            last_time = s.utime + s.stime;
-
-            std::this_thread::sleep_for(std::chrono::seconds(FLAGS_status_refresh)
-                - (std::chrono::system_clock::now() - begin));
-        }
-    });
-
-    signal(SIGINT, handle_sigint);
-
-    g_daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, FLAGS_port, NULL, NULL,
-            &answer_to_connection, NULL, MHD_OPTION_END,
-            MHD_OPTION_NOTIFY_COMPLETED, request_completed,
-            NULL, MHD_OPTION_END);
-
-    if (NULL == g_daemon)
-        return false;
-
-    g_callbacks["/"] = &LandingPage;
-    g_callbacks["/status"] = &Status;
-    g_callbacks["/jobs"] = &JobStatuses;
-    g_callbacks["/job"] = &JobDetails;
-
-    return true;
 }
 
 void RegisterUrl(const std::string& str, const UrlHandler& f) {
@@ -367,10 +260,38 @@ void SetStatusVar(const std::string& name, const std::string& value, size_t id) 
     g_data_access.unlock();
 }
 
-void LogData(const std::string& name, size_t value, size_t id) {
-    g_data_access.lock();
-    g_data[id][name].rset_capacity(20);
-    g_data[id][name].push_front(value);
-    g_data_access.unlock();
+void MonitoringJob(const std::vector<std::string>& vs, JobStatus& job);
+
+static const JobDesc monitoring_job = {
+    { },  // args
+    "",  // name
+    "",  // url
+    "",  // longer description
+    true /* synchronous */,
+    true /* reentrant */,
+    &MonitoringJob
+};
+
+bool InitHttpInterface() {
+    google::InstallFailureSignalHandler();
+
+    g_daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, FLAGS_port, NULL, NULL,
+            &answer_to_connection, NULL, MHD_OPTION_END,
+            MHD_OPTION_NOTIFY_COMPLETED, request_completed,
+            NULL, MHD_OPTION_END);
+
+    signal(SIGINT, handle_sigint);
+
+    if (NULL == g_daemon)
+        return false;
+
+    g_monitoring_id = g_jobs.StartJob(&monitoring_job, {});
+
+    g_callbacks["/"] = &LandingPage;
+    g_callbacks["/status"] = &Status;
+    g_callbacks["/jobs"] = &JobStatuses;
+    g_callbacks["/job"] = &JobDetails;
+
+    return true;
 }
 
