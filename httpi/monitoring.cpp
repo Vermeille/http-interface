@@ -50,7 +50,7 @@ std::string TimeToStr(std::time_t* t) {
     return str;
 }
 
-void MonitoringJob(const std::vector<std::string>& vs, JobStatus& job) {
+void MonitoringJob(const std::vector<std::string>& vs, JobResult& job) {
     Chart ram("RAM_usage");
     Chart cpu("CPU_usage");
 

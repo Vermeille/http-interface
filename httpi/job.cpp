@@ -72,17 +72,16 @@ Html JobDesc::DisplayResult(const std::string& res) const {
 
 JobStatus::JobStatus(const JobDesc* desc, const std::vector<std::string>& args, size_t id)
     : start_(std::chrono::system_clock::now()),
-    job_(std::async(std::launch::async, desc->function(), args, std::ref(*this))),
+    job_(std::async(std::launch::async, desc->function(), args, std::ref(res_))),
     args_(args),
-    page_(std::make_shared<std::string>("job just started")),
     finished_(false),
     desc_(desc),
     id_(id) {
 }
 
-std::shared_ptr<std::string> JobStatus::result() const {
+JobResult JobStatus::result() const {
     IsFinished();
-    return page_;
+    return res_;
 }
 
 bool JobStatus::IsFinished() const {
@@ -179,8 +178,9 @@ Html RunningJobs::Exec(const std::string& url, const POSTValues& vs) {
     // TODO: reentrance
 
     if (desc->IsSynchronous()) {
-        JobStatus js(desc, args, next_id_);
-        html << desc->DisplayResult(*js.result());
+        JobResult res;
+        desc->function()(args, res);
+        html << desc->DisplayResult(*res.Get());
         ++next_id_;
         return html;
     } else {

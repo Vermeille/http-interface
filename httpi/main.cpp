@@ -13,7 +13,7 @@ static const JobDesc compute_stuff = {
     "Compute a + b",  // longer description
     true /* synchronous */,
     true /* reentrant */,
-    [](const std::vector<std::string>& vs, JobStatus& job) { // the actual function
+    [](const std::vector<std::string>& vs, JobResult& job) { // the actual function
         job.SetPage(Html() << std::to_string(std::atoi(vs[0].c_str()) + std::atoi(vs[1].c_str())));
     }
 };
@@ -29,7 +29,7 @@ static const JobDesc ackermann = {
     "Permute a string",
     false /* synchronous */,
     true /* reentrant */,
-    [](const std::vector<std::string>& vs, JobStatus& job) {
+    [](const std::vector<std::string>& vs, JobResult& job) {
         Chart progression("progression");
         progression.Label("iter").Value("iter").Value("max");
 

@@ -27,7 +27,17 @@ class Arg {
     Html ArgToForm() const;
 };
 
-class JobStatus;
+class JobResult {
+    std::shared_ptr<std::string> page_;
+
+    public:
+    JobResult() : page_(std::make_shared<std::string>("job just started")) {}
+
+    void SetPage(const Html& page) {
+        page_.reset(new std::string(page.Get()));
+    }
+    std::shared_ptr<std::string> Get() const { return page_; }
+};
 
 // Describe a job, generate the HTML for jobs.
 class JobDesc {
@@ -37,10 +47,10 @@ class JobDesc {
     std::string desc_;  // text describing what the job does
     bool synchronous_;  // if synchronous, result will be given immediately. If not, queue a job.
     bool reentrant_;  // if not reentrant, only one running instance of the job is allowed
-    std::function<void(const std::vector<std::string>&, JobStatus&)> exec_;  // the actual function called
+    std::function<void(const std::vector<std::string>&, JobResult&)> exec_;  // the actual function called
   public:
 
-    typedef std::function<void(const std::vector<std::string>&, JobStatus&)> function_type;
+    typedef std::function<void(const std::vector<std::string>&, JobResult&)> function_type;
 
     const std::vector<Arg>& args() const { return args_; }
     const std::string& name() const { return name_; }
@@ -65,17 +75,13 @@ class JobDesc {
 // Describe a running instance of a job
 class JobStatus {
     std::chrono::system_clock::time_point start_;
+    JobResult res_;
     mutable std::future<void> job_;
     std::vector<std::string> args_;
-    std::shared_ptr<std::string> page_;
     mutable bool finished_;
     const JobDesc* const desc_;
     const size_t id_;
   public:
-
-    void SetPage(const Html& page) {
-        page_.reset(new std::string(page.Get()));
-    }
 
     size_t id() const { return id_; }
     std::string start_time() const {
@@ -88,7 +94,7 @@ class JobStatus {
     JobStatus(JobStatus&&) = default;
     JobStatus(const JobDesc* desc, const std::vector<std::string>& args, size_t id);
 
-    std::shared_ptr<std::string> result() const;
+    JobResult result() const;
 
     bool IsFinished() const;
 };

@@ -167,7 +167,7 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
 
 Html Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
     const JobStatus* rj = g_jobs.FindJobWithId(g_monitoring_id);
-    return Html() << *rj->result();
+    return Html() << *rj->result().Get();
 }
 
 Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
@@ -215,7 +215,7 @@ Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
     }
     html << Close();
 
-    html << *rj->result();
+    html << *rj->result().Get();
 
     html << Close();
     return html;
@@ -260,7 +260,7 @@ void SetStatusVar(const std::string& name, const std::string& value, size_t id) 
     g_data_access.unlock();
 }
 
-void MonitoringJob(const std::vector<std::string>& vs, JobStatus& job);
+void MonitoringJob(const std::vector<std::string>& vs, JobResult& job);
 
 static const JobDesc monitoring_job = {
     { },  // args
