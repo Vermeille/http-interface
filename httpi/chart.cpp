@@ -41,9 +41,9 @@ std::string Chart::Get() const {
         "<script>"
             "new Chartist.Line('#" + name_ + "', {"
                 "labels: [" + MapIntersperse(labels->second, ", ", [](const std::string& str) {
-                        return "\"" + str + "\""; }) + "].reverse(),"
+                        return "\"" + str + "\""; }) + "],"
                 "series: [" +
-                MAP_INTERSPERSE(values, ", ", v, "[" + ToCSV(v->second) + "].reverse()") +
+                MAP_INTERSPERSE(values, ", ", v, "[" + ToCSV(v->second) + "]") +
                 "]"
             "});"
         "</script>";
