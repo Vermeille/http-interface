@@ -51,7 +51,7 @@ struct Div : public Tag { Div() : Tag("div") {} };
 struct Form : public Tag {
     Form() : Tag("form") {}
     Form(const std::string& method, const std::string& action) : Tag("form") {
-        Attr("method", method).Attr("action", action);
+        Attr("method", method).Attr("action", action).Attr("enctype", "multipart/form-data");
     }
 };
 struct Input : public Tag {
