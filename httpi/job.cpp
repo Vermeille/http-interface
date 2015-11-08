@@ -1,23 +1,8 @@
 #include "job.h"
 
-///////////////// ARG //////////////
-
-Arg::Arg(const std::string& name, const std::string& type, const std::string& desc)
-    : name_(name),
-    type_(type),
-    desc_(desc) {
-}
-
-Html Arg::ArgToForm() const {
-    return Html() <<
-        Div().AddClass("form-group") <<
-            Tag("label").Attr("for", name_) << desc_ << Close() <<
-            Input().Attr("name", name_).Attr("type", type_).AddClass("form-control")
-                .Id(name_).Attr("placeholder", name_) <<
-        Close();
-}
-
 //////////////// JOBDESC /////////////////
+
+using namespace htmli;
 
 JobDesc::JobDesc(const std::vector<Arg>& args, const std::string& name, const std::string& url,
         const std::string& desc, bool synchronous, bool reentrant,

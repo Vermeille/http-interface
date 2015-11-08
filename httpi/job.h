@@ -8,24 +8,15 @@
 #include <memory>
 
 #include "displayer.h"
-#include "html.h"
-#include "chart.h"
+#include "html/html.h"
+#include "html/form-gen.h"
+
+namespace htmli = httpi::html;
+using htmli::Arg;
+using htmli::Html;
 
 // Represent the arguments a job can take in order to define them.
 // TODO: type validator
-class Arg {
-    std::string name_;  // formal name
-    std::string type_;  // from now, it takes the possibles values of an HTML's input tag
-    std::string desc_;  // short text describing the argument
-  public:
-
-    Arg(const std::string& name, const std::string& type, const std::string& desc);
-
-    const std::string& name() const { return name_; }
-    const std::string& type() const { return type_; }
-
-    Html ArgToForm() const;
-};
 
 class JobResult {
     std::shared_ptr<std::string> page_;
@@ -66,10 +57,10 @@ class JobDesc {
 
     // return true and a vector of parameters if all the arguments are present in vs
     // return false and an error page if they're not
-    std::tuple<bool, Html, std::vector<std::string>> ValidateParams(const POSTValues& vs);
+    std::tuple<bool, htmli::Html, std::vector<std::string>> ValidateParams(const POSTValues& vs);
 
-    Html MakeForm() const;
-    Html DisplayResult(const std::string& res) const;
+    htmli::Html MakeForm() const;
+    htmli::Html DisplayResult(const std::string& res) const;
 };
 
 // Describe a running instance of a job
@@ -114,10 +105,10 @@ class RunningJobs {
     }
 
     JobDesc* FindDescriptor(const std::string& url);
-    Html RenderTableOfRunningJobs() const;
-    Html RenderListOfDescriptors() const;
+    htmli::Html RenderTableOfRunningJobs() const;
+    htmli::Html RenderListOfDescriptors() const;
     JobStatus* FindJobWithId(size_t id);
-    Html Exec(const std::string& url, const POSTValues& vs);
+    htmli::Html Exec(const std::string& url, const POSTValues& vs);
     size_t StartJob(const JobDesc* desc, const std::vector<std::string>& args);
 };
 

@@ -2,8 +2,11 @@
 
 #include "displayer.h"
 #include "job.h"
+#include "html/chart.h"
 
 // a demo file for a toy app
+
+using namespace httpi::html;
 
 // descriptors for two jobs
 static const JobDesc compute_stuff = {

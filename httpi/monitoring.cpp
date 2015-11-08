@@ -6,6 +6,8 @@
 #include <ctime>
 #include "job.h"
 
+#include "html/chart.h"
+
 DEFINE_int32(status_memory, 20, "the number of samples to show in charts");
 DEFINE_int32(status_refresh, 30, "the refresh frequency (in secs) for monitoring info");
 
@@ -51,8 +53,8 @@ std::string TimeToStr(std::time_t* t) {
 }
 
 void MonitoringJob(const std::vector<std::string>& vs, JobResult& job) {
-    Chart ram("RAM_usage");
-    Chart cpu("CPU_usage");
+    httpi::html::Chart ram("RAM_usage");
+    httpi::html::Chart cpu("CPU_usage");
 
     ram.Label("time").Value("ram");
     cpu.Label("time").Value("cpu");

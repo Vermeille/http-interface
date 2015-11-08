@@ -16,13 +16,14 @@
 #include <ctime>
 
 #include "displayer.h"
-#include "chart.h"
 #include "job.h"
 
 DEFINE_int32(port, 8888, "the port to serve the http on");
 #define NOT_FOUND_ERROR "<html><head><title>Not found</title></head><body>Go away.</body></html>"
 
 /* WARNING / FIXME: race conditions everywhere, mutex badly used */
+
+using namespace httpi::html;
 
 static struct MHD_Daemon *g_daemon;
 static std::thread* g_monitoring_thread;
@@ -76,7 +77,7 @@ iterate_post(void* coninfo_cls, enum MHD_ValueKind, const char* key,
   return MHD_YES;
 }
 
-Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&);
+std::string LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&);
 
 std::string MakePage(const std::string& content) {
     return (Html() <<
@@ -162,12 +163,12 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
     }
 }
 
-Html Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
+std::string Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
     const JobStatus* rj = g_jobs.FindJobWithId(g_monitoring_id);
-    return Html() << *rj->result().Get();
+    return *rj->result().Get();
 }
 
-Html LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
+std::string LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
     Html html;
     html << H3() << "Pages" << Close();
     html << Ul();
@@ -179,24 +180,24 @@ Html LandingPage(const std::string& /* method */, const std::map<std::string, st
         H3() << "Jobs" << Close()  <<
         g_jobs.RenderListOfDescriptors();
     g_data_access.unlock();
-    return html;
+    return html.Get();
 }
 
-Html JobStatuses(const std::string& /* method */, const POSTValues&) {
-    return Html() << H2() << "Running jobs" << Close() << g_jobs.RenderTableOfRunningJobs();
+std::string JobStatuses(const std::string& /* method */, const POSTValues&) {
+    return (Html() << H2() << "Running jobs" << Close() << g_jobs.RenderTableOfRunningJobs()).Get();
 }
 
-Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
+std::string JobDetails(const std::string& /* method */, const POSTValues& vs) {
     auto id = vs.find("id");
 
     if (id == vs.end()) {
-        return Html() << "This job does not exist";
+        return "This job does not exist";
     }
 
     const JobStatus* rj = g_jobs.FindJobWithId(std::atoi(id->second.c_str()));
 
     if (!rj) {
-        return Html() << "job not found";
+        return "job not found";
     }
 
     Html html;
@@ -215,7 +216,7 @@ Html JobDetails(const std::string& /* method */, const POSTValues& vs) {
     html << *rj->result().Get();
 
     html << Close();
-    return html;
+    return html.Get();
 }
 
 static bool g_continue = true;

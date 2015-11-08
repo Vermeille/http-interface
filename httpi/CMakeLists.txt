@@ -1,9 +1,11 @@
 add_library(httpi
-    chart.cpp
-    chart.h
+    html/html.h
+    html/chart.cpp
+    html/chart.h
+    html/form-gen.h
+    html/form-gen.cpp
     displayer.cpp
     displayer.h
-    html.h
     job.cpp
     job.h
     monitoring.cpp)
@@ -21,5 +23,5 @@ install(TARGETS httpi
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib)
 
-file(GLOB headers *.h)
+file(GLOB headers *.h html/*.h)
 install(FILES ${headers} DESTINATION include/httpi)
