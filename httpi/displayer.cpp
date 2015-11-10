@@ -26,12 +26,7 @@ DEFINE_int32(port, 8888, "the port to serve the http on");
 using namespace httpi::html;
 
 static struct MHD_Daemon *g_daemon;
-static std::thread* g_monitoring_thread;
-static std::map<size_t, std::map<std::string, std::string>> g_status;
 static std::map<std::string, UrlHandler> g_callbacks;
-static std::mutex g_data_access;
-static RunningJobs g_jobs;
-static int g_monitoring_id;
 
 struct ConnInfo {
     MHD_PostProcessor* post;
@@ -67,45 +62,12 @@ iterate_post(void* coninfo_cls, enum MHD_ValueKind, const char* key,
               size_t size) {
   POSTValues& args = *static_cast<POSTValues*>(coninfo_cls);;
 
-  if (size > 0)
-  {
+  if (size > 0) {
       std::string& value = args[key];
-
       value.append(data, size);
   }
 
   return MHD_YES;
-}
-
-std::string LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&);
-
-std::string MakePage(const std::string& content) {
-    return (Html() <<
-        "<!DOCTYPE html>"
-        "<html>"
-           "<head>"
-                R"(<meta charset="utf-8">)"
-                R"(<meta http-equiv="X-UA-Compatible" content="IE=edge">)"
-                R"(<meta name="viewport" content="width=device-width, initial-scale=1">)"
-                R"(<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">)"
-                R"(<link rel="stylesheet" href="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.css">)"
-                R"(<script src="//cdn.jsdelivr.net/chartist.js/latest/chartist.min.js"></script>)"
-            "</head>"
-            "<body lang=\"en\">"
-                "<div class=\"container\">"
-                    "<div class=\"col-md-9\">" <<
-                        content <<
-                    "</div>"
-                    "<div class=\"col-md-3\">" <<
-                        LandingPage("GET", {}) <<
-                    "</div>"
-                "</div>"
-            "</body>"
-        "</html>").Get();
-}
-
-std::string MakePage(const Html& content) {
-    return MakePage(content.Get());
 }
 
 static int answer_to_connection(void *cls, struct MHD_Connection *connection, const char *url,
@@ -137,20 +99,9 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
             }, &info->args);
     auto res = g_callbacks.find(url);
     if (res != g_callbacks.end()) {
-        info->page = MakePage(res->second(method, info->args));
+        info->page = res->second(method, info->args);
     }
 
-    auto j_res = g_jobs.FindDescriptor(url);
-
-    if (j_res) {
-        if (!strcmp(method, "GET")) {
-            info->page = MakePage(j_res->MakeForm());
-        } else {
-            info->page = MakePage(g_jobs.Exec(url, info->args));
-        }
-    }
-
-    std::lock_guard<std::mutex> lock(g_data_access);
     if (info->page.empty()) {
         return not_found_page(cls, connection);
     } else {
@@ -163,65 +114,9 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
     }
 }
 
-std::string Status(const std::string& /* method */, const std::map<std::string, std::string>&) {
-    const JobStatus* rj = g_jobs.FindJobWithId(g_monitoring_id);
-    return *rj->result().Get();
-}
-
-std::string LandingPage(const std::string& /* method */, const std::map<std::string, std::string>&) {
-    Html html;
-    html << H3() << "Pages" << Close();
-    html << Ul();
-    g_data_access.lock();
-    for (auto& v : g_callbacks)
-        html << Li() << A().Attr("href", v.first) << v.first << Close() << Close();
-    html <<
-        Close() <<
-        H3() << "Jobs" << Close()  <<
-        g_jobs.RenderListOfDescriptors();
-    g_data_access.unlock();
-    return html.Get();
-}
-
-std::string JobStatuses(const std::string& /* method */, const POSTValues&) {
-    return (Html() << H2() << "Running jobs" << Close() << g_jobs.RenderTableOfRunningJobs()).Get();
-}
-
-std::string JobDetails(const std::string& /* method */, const POSTValues& vs) {
-    auto id = vs.find("id");
-
-    if (id == vs.end()) {
-        return "This job does not exist";
-    }
-
-    const JobStatus* rj = g_jobs.FindJobWithId(std::atoi(id->second.c_str()));
-
-    if (!rj) {
-        return "job not found";
-    }
-
-    Html html;
-    html <<
-        H1() << "Job Details" << Close() <<
-        Div() <<
-            P() << "Started on: " << rj->start_time() << Close() <<
-            H2() << "Status Variables" << Close() <<
-            Ul();
-
-    for (auto& v : g_status[rj->id()]) {
-        html << Li() << v.first + ": " + v.second << Close();
-    }
-    html << Close();
-
-    html << *rj->result().Get();
-
-    html << Close();
-    return html.Get();
-}
-
 static bool g_continue = true;
 
-bool ServiceRuns() { return g_continue; }
+bool IsServiceRunning() { return g_continue; }
 
 void handle_sigint(int sig) {
     if (sig == SIGINT) {
@@ -230,19 +125,10 @@ void handle_sigint(int sig) {
 }
 
 void RegisterUrl(const std::string& str, const UrlHandler& f) {
-    g_data_access.lock();
     g_callbacks.insert(std::make_pair(str, f));
-    g_data_access.unlock();
-}
-
-void RegisterJob(const JobDesc& jd) {
-    g_data_access.lock();
-    g_jobs.AddDescriptor(jd);
-    g_data_access.unlock();
 }
 
 void StopHttpInterface() {
-    delete g_monitoring_thread;
     MHD_stop_daemon(g_daemon);
 }
 
@@ -251,24 +137,6 @@ void ServiceLoopForever() {
         pause();
     }
 }
-
-void SetStatusVar(const std::string& name, const std::string& value, size_t id) {
-    g_data_access.lock();
-    g_status[id][name] = value;
-    g_data_access.unlock();
-}
-
-void MonitoringJob(const std::vector<std::string>& vs, JobResult& job);
-
-static const JobDesc monitoring_job = {
-    { },  // args
-    "",  // name
-    "",  // url
-    "",  // longer description
-    true /* synchronous */,
-    true /* reentrant */,
-    &MonitoringJob
-};
 
 bool InitHttpInterface() {
     google::InstallFailureSignalHandler();
@@ -282,13 +150,6 @@ bool InitHttpInterface() {
 
     if (NULL == g_daemon)
         return false;
-
-    g_monitoring_id = g_jobs.StartJob(&monitoring_job, {});
-
-    g_callbacks["/"] = &LandingPage;
-    g_callbacks["/status"] = &Status;
-    g_callbacks["/jobs"] = &JobStatuses;
-    g_callbacks["/job"] = &JobDetails;
 
     return true;
 }
