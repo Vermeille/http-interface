@@ -15,6 +15,8 @@
 #include <ctime>
 #include <ctime>
 
+#include <gflags/gflags.h>
+
 #include "displayer.h"
 #include "job.h"
 
@@ -22,8 +24,6 @@ DEFINE_int32(port, 8888, "the port to serve the http on");
 #define NOT_FOUND_ERROR "<html><head><title>Not found</title></head><body>Go away.</body></html>"
 
 /* WARNING / FIXME: race conditions everywhere, mutex badly used */
-
-using namespace httpi::html;
 
 static struct MHD_Daemon *g_daemon;
 static std::map<std::string, UrlHandler> g_callbacks;
@@ -139,8 +139,6 @@ void ServiceLoopForever() {
 }
 
 bool InitHttpInterface() {
-    google::InstallFailureSignalHandler();
-
     g_daemon = MHD_start_daemon(MHD_USE_SELECT_INTERNALLY, FLAGS_port, NULL, NULL,
             &answer_to_connection, NULL, MHD_OPTION_END,
             MHD_OPTION_NOTIFY_COMPLETED, request_completed,

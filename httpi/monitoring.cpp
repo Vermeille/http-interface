@@ -3,21 +3,21 @@
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <ctime>
-#include "job.h"
 
+#include <gflags/gflags.h>
+
+#include "job.h"
+#include "monitoring.h"
 #include "html/chart.h"
+#include "html/html.h"
+#include "displayer.h"
 
 DEFINE_int32(status_memory, 20, "the number of samples to show in charts");
 DEFINE_int32(status_refresh, 30, "the refresh frequency (in secs) for monitoring info");
 
-struct Stats {
-    size_t utime = 0;
-    size_t stime = 0;
-    size_t vsize = 0;
-};
+using namespace httpi::html;
 
-Stats GetMonitoringStats() {
+MonitoringJob::Stats MonitoringJob::GetMonitoringStats() const {
     static const int kUserTimeIndex = 14;
     static const int kKernelTimeIndex = 15;
     static const int kVirtualSizeIndex = 23;
@@ -46,13 +46,13 @@ Stats GetMonitoringStats() {
     return s;
 }
 
-std::string TimeToStr(std::time_t* t) {
+std::string MonitoringJob::TimeToStr(std::time_t* t) const {
     std::string str(std::ctime(t));
     str.pop_back();
     return str;
 }
 
-void MonitoringJob(const std::vector<std::string>& vs, JobResult& job) {
+void MonitoringJob::Do() {
     httpi::html::Chart ram("RAM_usage");
     httpi::html::Chart cpu("CPU_usage");
 
@@ -60,7 +60,7 @@ void MonitoringJob(const std::vector<std::string>& vs, JobResult& job) {
     cpu.Label("time").Value("cpu");
 
     size_t last_time = 0;
-    while (ServiceRuns()) {
+    while (IsServiceRunning()) {
         auto begin = std::chrono::system_clock::now();
 
         Stats s = GetMonitoringStats();
@@ -77,7 +77,7 @@ void MonitoringJob(const std::vector<std::string>& vs, JobResult& job) {
 
         last_time = s.utime + s.stime;
 
-        job.SetPage(Html() << ram.Get() << cpu.Get());
+        SetPage(Html() << ram.Get() << cpu.Get());
 
         std::this_thread::sleep_for(std::chrono::seconds(FLAGS_status_refresh)
                 - (std::chrono::system_clock::now() - begin));

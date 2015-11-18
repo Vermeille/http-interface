@@ -6,8 +6,8 @@ add_library(httpi
     html/form-gen.cpp
     displayer.cpp
     displayer.h
-    job.cpp
     job.h
+    monitoring.h
     monitoring.cpp)
 
 add_executable(test
