@@ -30,7 +30,7 @@ class FormDescriptor {
 
   public:
     FormDescriptor(const std::string& name, const std::string& desc, const std::vector<Arg>& args);
-    Html MakeForm(const std::string& dst_url) const;
+    Html MakeForm(const std::string& dst_url, const std::string& method) const;
     std::tuple<bool, Html, std::vector<std::string>>
         ValidateParams(const std::map<std::string, std::string>& vs) const;
 };

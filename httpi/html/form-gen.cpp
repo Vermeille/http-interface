@@ -20,11 +20,12 @@ Html Arg::ArgToForm() const {
         Close();
 }
 
-Html FormDescriptor::MakeForm(const std::string& dst_url) const {
+Html FormDescriptor::MakeForm(const std::string& dst_url,
+        const std::string& method) const {
     auto html = Html() <<
         H1() << name_ << Close() <<
         P() << desc_ << Close() <<
-        Form("POST", dst_url);
+        Form(method, dst_url);
 
     for (auto& a : args_) {
         html << a.ArgToForm();

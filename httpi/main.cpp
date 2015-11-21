@@ -16,7 +16,8 @@ static const FormDescriptor compute_stuff_form_desc = {
     { { "a", "number", "Value A" }, { "b", "number", "Value B" } }
 };
 
-static const std::string compute_stuff_form = compute_stuff_form_desc.MakeForm("/compute").Get();
+static const std::string compute_stuff_form = compute_stuff_form_desc
+        .MakeForm("/compute", "POST").Get();
 
 std::string ComputeStuff(const std::vector<std::string>& vs) {
     return std::to_string(std::atoi(vs[0].c_str()) + std::atoi(vs[1].c_str()));
@@ -28,7 +29,8 @@ static const FormDescriptor permutation_form_desc = {
     { { "str", "text", "String to permute" } }
 };
 
-static const std::string permutation_form = permutation_form_desc.MakeForm("/permute").Get();
+static const std::string permutation_form = permutation_form_desc
+        .MakeForm("/permute", "POST").Get();
 
 class PermutationJob : public WebJob {
     int factorial(int n) {
