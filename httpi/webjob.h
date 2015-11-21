@@ -1,6 +1,10 @@
 #pragma once
 
+#include <string>
+#include <memory>
+
 #include "job.h"
+#include "html/html.h"
 
 class WebJob {
     std::shared_ptr<std::string> res_;

@@ -151,15 +151,17 @@ int main(int argc, char** argv) {
         });
 
     RegisterUrl("/compute", [](const std::string& method, const POSTValues& args) {
-            if (method == "GET")
+            if (method == "GET") {
                 return MakePage(compute_stuff_form);
-            else if (method == "POST") {
+            } else if (method == "POST") {
                 auto vargs = compute_stuff_form_desc.ValidateParams(args);
                 if (std::get<0>(vargs)) {
                     return MakePage(std::get<1>(vargs).Get());
                 } else {
                     return MakePage(ComputeStuff(std::get<2>(vargs)));
                 }
+            } else {
+                return MakePage("no such method");
             }
         });
 

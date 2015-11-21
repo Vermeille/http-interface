@@ -25,5 +25,5 @@ install(TARGETS httpi
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib)
 
-file(GLOB headers *.h html/*.h)
-install(FILES ${headers} DESTINATION include/httpi)
+install(DIRECTORY . DESTINATION include/httpi
+    FILES_MATCHING PATTERN "*.h")
