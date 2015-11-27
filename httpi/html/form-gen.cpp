@@ -41,13 +41,13 @@ Html FormSerializer::MakeForm() const {
     auto html = Html() <<
         H1() << name_ << Close() <<
         P() << desc_ << Close() <<
-        Form(method_, url_);
+        Form(method_ == "GET" ? "GET" : "POST", url_);
 
     for (auto& a : args_) {
         html << a.ArgToForm();
     }
     html << Input()
-        .Attr("name", "_method")
+        .Name("_method")
         .Attr("type", "hidden")
         .Attr("value", method_);
 
