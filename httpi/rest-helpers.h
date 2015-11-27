@@ -90,7 +90,7 @@ class RestResource {
 
   public:
     std::string Process(const POSTValues& args) const {
-        auto content_type = args.find("Content-Type");
+        auto content_type = args.find("Accept");
         if (content_type != args.end()
                 && content_type->second == "application/json") {
             return rs_accessor_->JsonProcess(args);
