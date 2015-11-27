@@ -46,6 +46,10 @@ Html FormSerializer::MakeForm() const {
     for (auto& a : args_) {
         html << a.ArgToForm();
     }
+    html << Input()
+        .Attr("name", "_method")
+        .Attr("type", "hidden")
+        .Attr("value", method_) << Close();
 
     html << Submit() <<
         Close();

@@ -104,7 +104,7 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
                 return MHD_YES;
             }, &info->args);
     auto res = g_callbacks.find(url);
-    auto new_method = info->args.find("method");
+    auto new_method = info->args.find("_method");
     if (new_method != info->args.end()) {
         method = new_method->second;
     }
