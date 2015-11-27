@@ -49,7 +49,7 @@ Html FormSerializer::MakeForm() const {
     html << Input()
         .Attr("name", "_method")
         .Attr("type", "hidden")
-        .Attr("value", method_) << Close();
+        .Attr("value", method_);
 
     html << Submit() <<
         Close();
