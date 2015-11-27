@@ -89,14 +89,12 @@ class RestResource {
     std::shared_ptr<ResourceAccessor> rs_accessor_;
 
   public:
-    std::string Process(const POSTValues& args) const {
-        auto content_type = args.find("Accept");
-        if (content_type != args.end()
-                && content_type->second == "application/json") {
-            return rs_accessor_->JsonProcess(args);
-        } else {
-            return rs_accessor_->HtmlProcess(args);
-        }
+    std::string JsonProcess(const POSTValues& args) const {
+        return rs_accessor_->JsonProcess(args);
+    }
+
+    std::string HtmlProcess(const POSTValues& args) const {
+        return rs_accessor_->HtmlProcess(args);
     }
 
     std::string MakeForm() const {
@@ -133,7 +131,7 @@ class RestPageMaker {
     }
 
     std::string operator()(const std::string& method, const POSTValues& args) const {
-        auto content_type = args.find("Content-Type");
+        auto content_type = args.find("Accept");
         if (content_type != args.end()
                 && content_type->second == "application/json") {
             return JsonProcess(method, args);
@@ -149,7 +147,7 @@ class RestPageMaker {
             return (Html() << Div().AddClass("alert alert-red") <<
                 "method not supported" << Close()).Get();
         }
-        std::string json = resource->second.Process(args);
+        std::string json = resource->second.JsonProcess(args);
         return json + "\n";
     }
 
@@ -163,7 +161,7 @@ class RestPageMaker {
                 "method not supported" << Close()).Get();
         }
 
-        html << resource->second.Process(args);
+        html << resource->second.HtmlProcess(args);
 
         for (const auto& r : resources_) {
             html << r.second.MakeForm();
