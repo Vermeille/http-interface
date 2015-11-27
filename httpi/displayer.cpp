@@ -71,15 +71,16 @@ iterate_post(void* coninfo_cls, enum MHD_ValueKind, const char* key,
 }
 
 static int answer_to_connection(void *cls, struct MHD_Connection *connection, const char *url,
-        const char *method, const char* /* version */, const char *upload_data, size_t *upload_data_size,
+        const char *m, const char* /* version */, const char *upload_data, size_t *upload_data_size,
         void **con_cls)
 {
+    std::string method = m;
     ConnInfo* info = static_cast<ConnInfo*>(*con_cls);
     std::cerr << method << " " << url << " upload size: " << *upload_data_size << std::endl;
     if (*con_cls == nullptr) {
         info = new ConnInfo;
         *con_cls = info;
-        if (strcmp(method, "POST") == 0) {
+        if (method != "GET") {
             info->post = MHD_create_post_processor(connection, 512, iterate_post, &info->args);
             return MHD_YES;
         }
@@ -103,6 +104,11 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
                 return MHD_YES;
             }, &info->args);
     auto res = g_callbacks.find(url);
+    auto new_method = info->args.find("method");
+    if (new_method != info->args.end()) {
+        method = new_method->second;
+    }
+
     if (res != g_callbacks.end()) {
         info->page = res->second(method, info->args);
     }
