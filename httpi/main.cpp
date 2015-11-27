@@ -126,7 +126,7 @@ int main(int argc, char** argv) {
                 [](int id) {
                     return JsonBuilder()
                         .Append("job_id", id)
-                        .Build()
+                        .Build();
                 })));
 
     RegisterUrl("/", [&jp, &monitoring_job](const std::string&, const POSTValues&) {

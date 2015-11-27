@@ -4,13 +4,14 @@ add_library(httpi
     html/chart.h
     html/form-gen.h
     html/form-gen.cpp
+    html/json.h
     displayer.cpp
     displayer.h
     job.h
     monitoring.h
     monitoring.cpp
-    webjob.h
-    main.cpp)
+    rest-helpers.h
+    webjob.h)
 
 add_executable(test
     main.cpp)
