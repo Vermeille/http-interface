@@ -91,7 +91,12 @@ static int answer_to_connection(void *cls, struct MHD_Connection *connection, co
         return MHD_YES;
     }
 
-    MHD_get_connection_values(connection, (MHD_ValueKind)((int)MHD_POSTDATA_KIND | (int)MHD_GET_ARGUMENT_KIND),
+    MHD_get_connection_values(connection,
+            (MHD_ValueKind)
+                ((int)MHD_POSTDATA_KIND
+                 | (int)MHD_GET_ARGUMENT_KIND
+                 | (int)MHD_RESPONSE_HEADER_KIND
+                 | (int)MHD_HEADER_KIND),
             [](void* cls, MHD_ValueKind, const char* k, const char* v) {
                 POSTValues& post = *static_cast<POSTValues*>(cls);
                 post[k] = v;

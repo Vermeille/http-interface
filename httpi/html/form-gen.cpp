@@ -20,12 +20,28 @@ Html Arg::ArgToForm() const {
         Close();
 }
 
-Html FormDescriptor::MakeForm(const std::string& dst_url,
-        const std::string& method) const {
+template <>
+std::string Convert<std::string>(
+        const std::string& str,
+        std::vector<std::string>&) {
+    return str;
+}
+
+template <>
+int Convert<int>(const std::string& str, std::vector<std::string>& err) {
+    try {
+        return std::stoi(str.c_str());
+    } catch (...) {
+        err.push_back("cannot convert " + str + " to int");
+        return 0;
+    }
+}
+
+Html FormSerializer::MakeForm() const {
     auto html = Html() <<
         H1() << name_ << Close() <<
         P() << desc_ << Close() <<
-        Form(method, dst_url);
+        Form(method_, url_);
 
     for (auto& a : args_) {
         html << a.ArgToForm();
@@ -36,32 +52,13 @@ Html FormDescriptor::MakeForm(const std::string& dst_url,
     return html;
 }
 
-FormDescriptor::FormDescriptor(
+FormSerializer::FormSerializer(
+        const std::string& method,
+        const std::string& url,
         const std::string& name,
         const std::string& desc,
         const std::vector<Arg>& args)
-    : name_(name), desc_(desc), args_(args) {
-}
-
-std::tuple<bool, Html, std::vector<std::string>>
-        FormDescriptor::ValidateParams(const std::map<std::string, std::string>& vs) const {
-    std::vector<std::string> args_values;
-    bool error = false;
-    Html html;
-
-    for (auto& a : args_) {
-        auto arg_value = vs.find(a.name());
-        if (arg_value == vs.end()) {
-            html << Div().AddClass("alert alert-danger")
-                << a.name() << " was not provided." <<
-            Close();
-            error = true;
-        } else {
-            args_values.push_back(arg_value->second);
-        }
-    }
-
-    return std::make_tuple(error, html, args_values);
+    : method_(method), url_(url), name_(name), desc_(desc), args_(args) {
 }
 
 } // html

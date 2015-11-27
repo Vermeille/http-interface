@@ -1,4 +1,4 @@
-FROM ubuntu:14.04
+FROM ubuntu:15.10
 
 ENV CC gcc
 ENV CXX  g++
@@ -21,6 +21,9 @@ RUN apt-get update &&  apt-get install -y \
          libgflags-dev \
          make \
          pkg-config
+
+RUN ln -s /usr/bin/aclocal-1.15 /usr/bin/aclocal-1.14
+RUN ln -s /usr/bin/automake-1.15 /usr/bin/automake-1.14
 
 # Http Interface runs on GNU libmicrohttpd
 RUN git clone https://github.com/Metaswitch/libmicrohttpd --depth=1 && \

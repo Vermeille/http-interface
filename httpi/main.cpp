@@ -1,3 +1,4 @@
+#include <utility>
 
 #include "displayer.h"
 #include "monitoring.h"
@@ -9,28 +10,15 @@
 
 using namespace httpi::html;
 
-// descriptors for two jobs
-static const FormDescriptor compute_stuff_form_desc = {
-    "Compute Stuff",  // name
-    "Compute a + b",  // longer description
-    { { "a", "number", "Value A" }, { "b", "number", "Value B" } }
-};
-
-static const std::string compute_stuff_form = compute_stuff_form_desc
-        .MakeForm("/compute", "POST").Get();
-
-std::string ComputeStuff(const std::vector<std::string>& vs) {
-    return std::to_string(std::atoi(vs[0].c_str()) + std::atoi(vs[1].c_str()));
-}
-
-static const FormDescriptor permutation_form_desc = {
+static const FormDescriptor<std::string> permute_form_desc = {
+    "POST", "/permute",
     "Permutations",
     "Permute a string",
     { { "str", "text", "String to permute" } }
 };
 
-static const std::string permutation_form = permutation_form_desc
-        .MakeForm("/permute", "POST").Get();
+static const std::string permutation_form = permute_form_desc
+        .MakeForm().Get();
 
 class PermutationJob : public WebJob {
     int factorial(int n) {
@@ -69,6 +57,22 @@ class PermutationJob : public WebJob {
     }
 };
 
+template <class F, class... Args, size_t... I>
+auto CurryCallImpl(
+        F&& f,
+        const std::tuple<Args...>& args,
+        std::index_sequence<I...>) {
+    return f(std::get<I>(args)...);
+}
+
+template <class F, class... Args>
+auto CurryCall(F&& f, const std::tuple<Args...>& args) {
+    return CurryCallImpl(
+            f,
+            args,
+            std::index_sequence_for<Args...>());
+}
+
 std::string MakePage(const std::string& content) {
     return (httpi::html::Html() <<
         "<!DOCTYPE html>"
@@ -94,6 +98,148 @@ std::string MakePage(const std::string& content) {
         "</html>").Get();
 }
 
+class RestResource {
+    class ResourceAccessor {
+      public:
+        virtual std::string HtmlProcess(const POSTValues&) const = 0;
+        virtual std::string JsonProcess(const POSTValues&) const = 0;
+        virtual std::string MakeForm() const = 0;
+    };
+
+    template <class Serializer, class Exec, class HtmlRenderer, class JsonRenderer>
+    class ResourceImpl : public ResourceAccessor {
+        Serializer serializer_;
+        Exec exec_;
+        HtmlRenderer html_;
+        JsonRenderer json_;
+
+      public:
+        // FIXME: I don't belong here
+        Html ErrorsToHtml(const std::vector<std::string>& errs) const {
+            Html html;
+            for (const auto& e : errs) {
+                html << Div().AddClass("alert") << e << Close();
+            }
+            return html;
+        }
+
+        ResourceImpl(
+                Serializer&& s,
+                Exec&& e,
+                HtmlRenderer&& html,
+                JsonRenderer&& json)
+            : serializer_(s), exec_(e), html_(html), json_(json) {}
+
+        virtual std::string HtmlProcess(const POSTValues& post_args) const {
+            Html html;
+            auto args = serializer_.Validate(post_args);
+            if (!args.second.empty()) {
+                html << ErrorsToHtml(args.second);
+            } else {
+                html << html_(CurryCall(exec_, args.first));
+            }
+            return html.Get();
+        }
+
+        virtual std::string JsonProcess(const POSTValues& post_args) const {
+            auto args = serializer_.Validate(post_args);
+            if (!args.second.empty()) {
+                return ErrorsToHtml(args.second).Get();
+            } else {
+                return json_(CurryCall(exec_, args.first));
+            }
+        }
+
+        virtual std::string MakeForm() const {
+            return serializer_.MakeForm().Get();
+        }
+    };
+
+    std::shared_ptr<ResourceAccessor> rs_accessor_;
+
+  public:
+    std::string Process(const POSTValues& args) const {
+        auto content_type = args.find("Content-Type");
+        if (content_type != args.end()
+                && content_type->second == "application/json") {
+            return rs_accessor_->JsonProcess(args);
+        } else {
+            return rs_accessor_->HtmlProcess(args);
+        }
+    }
+
+    std::string MakeForm() const {
+        return rs_accessor_->MakeForm();
+    }
+
+    template <class Serializer, class Exec, class HtmlRenderer, class JsonRenderer>
+    RestResource(
+            Serializer&& s,
+            Exec&& e,
+            HtmlRenderer&& html,
+            JsonRenderer&& json)
+        : rs_accessor_(
+                std::make_unique<ResourceImpl<Serializer,Exec, HtmlRenderer, JsonRenderer>>(
+                    std::forward<Serializer>(s),
+                    std::forward<Exec>(e),
+                    std::forward<HtmlRenderer>(html),
+                    std::forward<JsonRenderer>(json))) {
+    }
+};
+
+class RestPageMaker {
+    std::map<std::string, RestResource> resources_;
+    std::function<std::string(const std::string&)> theme_;
+
+    public:
+    RestPageMaker(const decltype(theme_)& theme) : theme_(theme) {}
+
+    RestPageMaker(const RestPageMaker& theme) = default;
+
+    RestPageMaker& AddResource(const std::string& method, const RestResource& res) {
+        resources_.emplace(method, res);
+        return *this;
+    }
+
+    std::string operator()(const std::string& method, const POSTValues& args) const {
+        auto content_type = args.find("Content-Type");
+        if (content_type != args.end()
+                && content_type->second == "application/json") {
+            return JsonProcess(method, args);
+        } else {
+            return HtmlProcess(method, args);
+        }
+    }
+
+    std::string JsonProcess(const std::string& method, const POSTValues& args) const {
+        auto resource = resources_.find(method);
+        if (resource == resources_.end()) {
+            return (Html() << Div().AddClass("alert alert-red") <<
+                "method not supported" << Close()).Get();
+        }
+        std::string json = resource->second.Process(args);
+        return json + "\n";
+    }
+
+    std::string HtmlProcess(const std::string& method, const POSTValues& args) const {
+        Html html;
+
+        auto resource = resources_.find(method);
+        if (resource == resources_.end()) {
+            return (html << Div().AddClass("alert alert-red") <<
+                "method not supported" << Close()).Get();
+        }
+
+        html << resource->second.Process(args);
+
+        for (const auto& r : resources_) {
+            html << r.second.MakeForm();
+        }
+
+        return theme_(html.Get()) + "\n";
+    }
+};
+
 int main(int argc, char** argv) {
     //google::InitGoogleLogging(argv[0]);
     InitHttpInterface();  // Init the http server
@@ -101,6 +247,36 @@ int main(int argc, char** argv) {
     WebJobsPool jp;
     auto t1 = jp.StartJob(std::unique_ptr<MonitoringJob>(new MonitoringJob()));
     auto monitoring_job = jp.GetId(t1);
+
+    RegisterUrl("/compute", RestPageMaker(MakePage)
+            .AddResource("GET", RestResource(
+                FormDescriptor<int, int> {
+                    "GET", "/compute",
+                    "Compute Stuff",  // name
+                    "Compute a + b",  // longer description
+                    { { "a", "number", "Value A" },
+                      { "b", "number", "Value B" } }
+                },
+                [](int a, int b) {
+                    return a + b;
+                },
+                [](int a) { return std::to_string(a); },
+                [](int a) { return "{\"result\":" + std::to_string(a) + "}"; }
+                )));
+
+    RegisterUrl("/permute", RestPageMaker(MakePage)
+            .AddResource("GET", RestResource(
+                FormDescriptor<std::string> {
+                    "GET", "/permute",
+                    "Permute Stuff",  // name
+                    "Permute a string",  // longer description
+                    { { "str", "text", "the string" } }
+                },
+                [&jp](const std::string& str) {
+                    return jp.StartJob(std::make_unique<PermutationJob>(str));
+                },
+                [](int id) { return Html() << "job_id: " << std::to_string(id); },
+                [](int id) { return "{\"job_id\":" + std::to_string(id) + "}"; })));
 
     RegisterUrl("/", [&jp, &monitoring_job](const std::string&, const POSTValues&) {
             return MakePage(*monitoring_job->job_data().page());
@@ -149,35 +325,6 @@ int main(int argc, char** argv) {
                 }
 
                 return MakePage(*job->job_data().page());
-            }
-        });
-
-    RegisterUrl("/compute", [](const std::string& method, const POSTValues& args) {
-            if (method == "GET") {
-                return MakePage(compute_stuff_form);
-            } else if (method == "POST") {
-                auto vargs = compute_stuff_form_desc.ValidateParams(args);
-                if (std::get<0>(vargs)) {
-                    return MakePage(std::get<1>(vargs).Get());
-                } else {
-                    return MakePage(ComputeStuff(std::get<2>(vargs)));
-                }
-            } else {
-                return MakePage("no such method");
-            }
-        });
-
-    RegisterUrl("/permute", [&jp](const std::string& method, const POSTValues& args) {
-            if (method == "GET")
-                return MakePage(permutation_form);
-            else if (method == "POST") {
-                auto vargs = permutation_form_desc.ValidateParams(args);
-                if (std::get<0>(vargs)) {
-                    return MakePage(std::get<1>(vargs).Get());
-                } else {
-                    jp.StartJob(std::unique_ptr<PermutationJob>(new PermutationJob(std::get<2>(vargs)[0])));
-                    return MakePage("Job started");
-                }
             }
         });
 
