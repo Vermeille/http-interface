@@ -60,7 +60,8 @@ class PermutationJob : public WebJob {
 };
 
 std::string MakePage(const std::string& content) {
-    return (httpi::html::Html() <<
+    using namespace httpi::html;
+    return (Html() <<
         "<!DOCTYPE html>"
         "<html>"
            "<head>"
@@ -77,7 +78,21 @@ std::string MakePage(const std::string& content) {
                         content <<
                     "</div>"
                     "<div class=\"col-md-3\">" <<
-                        "JOBS"
+                        Ul() <<
+                            Li() <<
+                                A().Attr("href", "/jobs") << "Jobs" << Close() <<
+                            Close() <<
+                            Li() <<
+                                A().Attr("href", "/permute") <<
+                                    "Permute" <<
+                                Close() <<
+                            Close() <<
+                            Li() <<
+                                A().Attr("href", "/compute") <<
+                                    "Addition" <<
+                                Close() <<
+                            Close() <<
+                        Close() <<
                     "</div>"
                 "</div>"
             "</body>"
