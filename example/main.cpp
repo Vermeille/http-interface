@@ -1,12 +1,12 @@
 #include <utility>
 
-#include "rest-helpers.h"
-#include "displayer.h"
-#include "monitoring.h"
-#include "job.h"
-#include "html/chart.h"
-#include "html/form-gen.h"
-#include "html/json.h"
+#include <httpi/rest-helpers.h>
+#include <httpi/displayer.h>
+#include <httpi/monitoring.h>
+#include <httpi/job.h>
+#include <httpi/html/chart.h>
+#include <httpi/html/form-gen.h>
+#include <httpi/html/json.h>
 
 // a demo file for a toy app
 

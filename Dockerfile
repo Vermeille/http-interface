@@ -39,6 +39,6 @@ EXPOSE 8888
 
 ADD . /root
 
-RUN mkdir build && cd build && cmake .. && make && make install
+RUN mkdir build && cd build && cmake .. && make
 
-ENTRYPOINT ["valgrind", "./build/httpi/test"]
+ENTRYPOINT ["valgrind", "./build/example/httpi-example"]
