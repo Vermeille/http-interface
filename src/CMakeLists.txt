@@ -14,6 +14,6 @@ add_library(httpi
     httpi/webjob.h
 )
 
-target_link_libraries(httpi LINK_PUBLIC microhttpd glog gflags pthread)
+target_link_libraries(httpi LINK_PUBLIC microhttpd pthread)
 target_include_directories(httpi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

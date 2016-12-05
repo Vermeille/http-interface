@@ -1,19 +1,15 @@
-#include <vector>
-#include <string>
 #include <fstream>
-#include <sstream>
 #include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
 
-#include <gflags/gflags.h>
-
-#include "job.h"
-#include "monitoring.h"
+#include "displayer.h"
 #include "html/chart.h"
 #include "html/html.h"
-#include "displayer.h"
-
-DEFINE_int32(status_memory, 20, "the number of samples to show in charts");
-DEFINE_int32(status_refresh, 30, "the refresh frequency (in secs) for monitoring info");
+#include "job.h"
+#include "monitoring.h"
 
 using namespace httpi::html;
 
@@ -60,27 +56,29 @@ void MonitoringJob::Do() {
     cpu.Label("time").Value("cpu");
 
     size_t last_time = 0;
-    while (IsServiceRunning()) {
+    while (running_) {
         auto begin = std::chrono::system_clock::now();
 
         Stats s = GetMonitoringStats();
 
         ram.Log("ram", s.vsize);
-        cpu.Log("cpu", (100 / FLAGS_status_refresh)
-                * ((double)s.utime +  s.stime - last_time) / sysconf(_SC_CLK_TCK));
+        cpu.Log("cpu",
+                (100 / refresh_delay_) *
+                    ((double)s.utime + s.stime - last_time) /
+                    sysconf(_SC_CLK_TCK));
 
         auto t = std::chrono::system_clock::to_time_t(begin);
         ram.Log("time", TimeToStr(&t));
         cpu.Log("time", TimeToStr(&t));
-        ram.MostRecent(FLAGS_status_memory);
-        cpu.MostRecent(FLAGS_status_memory);
+        ram.MostRecent(history_size_);
+        cpu.MostRecent(history_size_);
 
         last_time = s.utime + s.stime;
 
         SetPage(Html() << ram.Get() << cpu.Get());
 
-        std::this_thread::sleep_for(std::chrono::seconds(FLAGS_status_refresh)
-                - (std::chrono::system_clock::now() - begin));
+        std::this_thread::sleep_for(std::chrono::seconds(refresh_delay_) -
+                                    (std::chrono::system_clock::now() - begin));
     }
+    std::cout << "Stop monitoring\n";
 }
-

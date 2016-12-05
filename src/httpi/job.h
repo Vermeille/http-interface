@@ -1,10 +1,10 @@
 #pragma once
 
-#include <string>
-#include <future>
 #include <chrono>
-#include <mutex>
+#include <future>
 #include <map>
+#include <mutex>
+#include <string>
 
 template <class PackagedJob>
 class Job {
@@ -13,15 +13,16 @@ class Job {
     std::chrono::system_clock::time_point start_;
     mutable bool finished_ = false;
 
-  public:
+   public:
     Job(std::unique_ptr<PackagedJob> job)
         : job_(std::move(job)),
-        future_(std::async(std::launch::async, &PackagedJob::Do, job_.get())) {
-    }
+          future_(
+              std::async(std::launch::async, &PackagedJob::Do, job_.get())) {}
 
     bool IsFinished() const {
         if (finished_ == false) {
-            bool ended = future_.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+            bool ended = future_.wait_for(std::chrono::seconds(0)) ==
+                         std::future_status::ready;
             finished_ = ended;
         }
         return finished_;
@@ -35,7 +36,7 @@ class JobPool {
     std::map<size_t, std::shared_ptr<Job<PackagedJob>>> jobs_;
     mutable std::mutex jobs_guard_;
 
-  public:
+   public:
     typedef std::pair<const size_t, std::shared_ptr<Job<PackagedJob>>> job_type;
 
     size_t StartJob(std::unique_ptr<PackagedJob> pj) {
@@ -43,8 +44,9 @@ class JobPool {
 
         size_t id = jobs_.size();
         jobs_.emplace(std::piecewise_construct,
-                std::forward_as_tuple(id),
-                std::forward_as_tuple(std::make_shared<Job<PackagedJob>>(std::move(pj))));
+                      std::forward_as_tuple(id),
+                      std::forward_as_tuple(
+                          std::make_shared<Job<PackagedJob>>(std::move(pj))));
         return id;
     }
 
@@ -68,4 +70,3 @@ class JobPool {
         }
     }
 };
-

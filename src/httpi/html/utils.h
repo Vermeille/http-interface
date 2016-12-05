@@ -7,7 +7,9 @@ namespace html {
 namespace utils {
 
 template <class FwdIterator>
-typename std::enable_if<std::is_same<typename FwdIterator::value_type, std::string>::value, std::string>::type
+typename std::enable_if<
+    std::is_same<typename FwdIterator::value_type, std::string>::value,
+    std::string>::type
 ToCSV(FwdIterator begin, FwdIterator end) {
     if (begin == end) {
         return "";
@@ -21,7 +23,9 @@ ToCSV(FwdIterator begin, FwdIterator end) {
 }
 
 template <class FwdIterator>
-typename std::enable_if<!std::is_same<typename FwdIterator::value_type, std::string>::value, std::string>::type
+typename std::enable_if<
+    !std::is_same<typename FwdIterator::value_type, std::string>::value,
+    std::string>::type
 ToCSV(FwdIterator begin, FwdIterator end) {
     if (begin == end) {
         return "";
@@ -34,14 +38,18 @@ ToCSV(FwdIterator begin, FwdIterator end) {
     return tmp;
 }
 
-std::string SurroundWithQuotes(const std::string& str) { return "\"" + str + "\""; }
-std::string SurroundWithBrackets(const std::string& str) { return "[" + str + "]"; }
+std::string SurroundWithQuotes(const std::string& str) {
+    return "\"" + str + "\"";
+}
+std::string SurroundWithBrackets(const std::string& str) {
+    return "[" + str + "]";
+}
 
 template <class FwdIterator>
 std::string ToJSONList(FwdIterator begin, FwdIterator end) {
     return SurroundWithBrackets(ToCSV(begin, end));
 }
 
-} // utils
-} // html
-} // httpi
+}  // utils
+}  // html
+}  // httpi
